@@ -27,7 +27,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 
 //
 const indexRouter = require("./routes/index");
-const testRouter = require("./routes/test"); 
+// const testRouter = require("./routes/test"); 
 const authRouter = require("./routes/auth");
 const mypageRouter = require("./routes/mypage");
 const recipeRouter = require("./routes/recipe");
@@ -37,7 +37,7 @@ const bookmarkRouter = require("./routes/bookmark");
 
 app.use(express.json());
 app.use("/", indexRouter);
-app.use("/test", testRouter);
+// app.use("/test", testRouter);
 app.use("/auth", authRouter);
 app.use("/mypage", mypageRouter);
 app.use("/recipe", recipeRouter);
