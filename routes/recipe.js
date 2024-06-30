@@ -1,86 +1,48 @@
 const express = require("express");
 const router = express.Router();
 const axios = require("axios");
-const qs = require("qs");
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
-const mongoose = require("mongoose");
-const User = require("../models/user");
-const Recipe = require("../models/recipemeta");
-const Seasonal = require("../models/seasonal");
+const moment = require("moment-timezone");
+
+const { pool } = require("../scripts/connectMySQL");
 require("dotenv").config();
 
 router.use(express.json());
 
 // BaseUrl : /recipe
 
-// .env naver OAuth
-const naverReq = {
-  client_id: process.env.NAVER_CLIENT_ID,
-  client_secret: process.env.NAVER_CLIENT_SECRET,
-  redirect_uri: process.env.NAVER_REDIRECT_URI,
-  state: process.env.NAVER_STATE,
-};
-
-// RECIPE_01
-router.post("/updateBookmark", async (req, res) => {
-  const { user_id, recipe_no } = req.body;
-
+// RECIPE_01 : 최신순 20개 가져오기
+router.get("/getRecentList", async(req, res)=>{
   try {
-    // 1. User Collection에서 user_id를 키값으로 해 유저 검색
-    const getUserProfile = await User.findOne({ user_id });
-
-    if (!getUserProfile) {
-      return res.status(400).json({ message: "잘못된 유저 정보입니다." });
-    }
-
-    // 1-1. 찾은 유저의 bookmark 값 반환 "user_bookmark": ["recipe_no", "recipe_no", "recipe_no"]
-    let { user_bookmark } = getUserProfile;
-
-    // 2. user_bookmark에 recipe_no가 있는지 판단
-    if (user_bookmark.includes(recipe_no)) {
-      // 2-1. 있을 시 삭제 후 배열 반환
-      user_bookmark = user_bookmark.filter((rn) => rn !== recipe_no);
-    } else {
-      // 2-2. 없을 시 추가 후 배열 반환
-      user_bookmark.push(recipe_no);
-    }
-
-    // 3. 해당 배열 user정보에 저장
-    const updateBookmark = await User.findOneAndUpdate(
-      { user_id },
-      {
-        user_bookmark,
-      }
+    const [recentRecipes] = await pool.query(
+      'SELECT * FROM Recipe ORDER BY recipe_no DESC LIMIT 20'
     );
 
-    if (!updateBookmark) {
-      return res.status(404).json({ message: "잘못된 유저 정보입니다." });
-    }
-
-    return res.status(200).json({ message: "즐겨찾기 목록에 추가되었습니다." });
+    // 결과를 클라이언트에게 응답으로 보내기
+    res.json({ recipes: recentRecipes });
   } catch (err) {
-    console.error("Error updateing bookmark: ", err);
-    res
-      .status(500)
-      .json({ message: "즐겨찾기 추가에 실패했습니다. 다시 시도해주세요." });
+    console.error(err);
+    res.status(500).json({
+      message: "최신 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
+    });
   }
-});
+})
 
-// RECIPE_02
+// RECIPE_02 : 현재 월 기준 제철농산물 레시피 가져오기
 router.get("/getSeasonalList", async (req, res) => {
   try {
-    // 1. 현재 날짜 기준 월 1~12로 가져오기
-    const currentMonth = new Date().getMonth() + 1;
+    // 1. 현재 날짜 기준 월 1~12로 가져오기, timezone 고려
+    const currentMonth = moment().tz("Asia/Seoul").month() + 1;
 
-    // 1-1. 현재 월에 해당하는 제철 농산물 이름 배열로 받아오기
-    const findSeasonalFoodName = await Seasonal.find(
-      { seasonal_month: currentMonth },
-      "seasonal_name seasonal_image_url -_id" // _id 필드를 제외하고 필요한 필드만 선택
-    ).lean();
+    // 2. 현재 월에 해당하는 제철 농산물 이름 배열로 받아오기
+    const [findSeasonalFoodName] = await pool.query(
+      'SELECT seasonal_name, seasonal_image FROM Seasonal WHERE seasonal_month = ?',
+      [currentMonth]
+    );
 
-    // 결과를 클라이언트에게 응답으로 보내기
+    // 3. 결과를 클라이언트에게 응답으로 보내기
     res.json({ seasonal_list: findSeasonalFoodName });
   } catch (err) {
     console.error(err);
@@ -91,39 +53,28 @@ router.get("/getSeasonalList", async (req, res) => {
   }
 });
 
-// RECIPE_03
+// RECIPE_03 : 선호도 태그 둘 다 만족하는 레시피 가져오기
 router.post("/getPreferList", async (req, res) => {
   const { user_id } = req.body;
   try {
-    // 1. User Collection에서 user_id로 user_prefer 값 가져오기
-    const getUserPrefer = await User.findOne({ user_id }, "user_prefer");
+    // 1. User 테이블에서 user_id로 cate_no와 situ_no 값 가져오기
+    const [getUserPrefer] = await pool.query('SELECT cate_no, situ_no FROM MyPage WHERE user_id = ?', [user_id]);
 
     if (
-      !getUserPrefer ||
-      !getUserPrefer.user_prefer ||
-      getUserPrefer.user_prefer.length === 0
+      getUserPrefer.length === 0 ||
+      getUserPrefer[0].cate_no === null ||
+      getUserPrefer[0].situ_no === null
     ) {
       return res.status(204).json({ message: "선호도 정보가 없습니다." });
     }
 
-    // user_prefer이 항상 한 쌍의 값을 가정
-    const userPrefer = getUserPrefer.user_prefer[0];
+    // 2. 둘 다 만족할 때
+    const [queryRes] = await pool.query(
+      'SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ?',
+      [getUserPrefer[0].cate_no, getUserPrefer[0].situ_no]
+    );
 
-    // 2-2. 둘 다 만족할 때
-    const query = {
-      "recipe_class.cate_no": userPrefer.cate_no,
-      "recipe_class.situ_no": userPrefer.situ_no,
-    };
-
-    const projection = {
-      recipe_no: 1,
-      recipe_title: 1,
-      recipe_thumbnail: 1,
-    };
-
-    const queryRes = await Recipe.find(query, projection).exec();
-
-    // 3.
+    // 3. 결과를 클라이언트로 전달
     const result = {
       prefer_list: queryRes.map((recipe) => ({
         recipe_no: recipe.recipe_no,
@@ -133,15 +84,76 @@ router.post("/getPreferList", async (req, res) => {
     };
 
     res.json(result);
-  } catch (error) {
+  } catch (err) {
+    console.log(err)
     return res.status(500).json({
       message:
-        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
+        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요."
     });
   }
 });
 
-// RECIPE_04
+// RECIPE_04 : 선호 cate만 만족하는 레시피 리스트 가져오기
+router.post("/getCateList", async (req, res) => {
+  const { cate_no } = req.body;
+
+  try {
+    // 1. 만족하는 레시피 찾기
+    const [queryRes] = await pool.query(
+      'SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ?',
+      [cate_no]
+    );
+
+    // 2. 결과를 클라이언트로 전달
+    const result = {
+      cate_list: queryRes.map((recipe) => ({
+        recipe_no: recipe.recipe_no,
+        recipe_title: recipe.recipe_title,
+        recipe_thumbnail: recipe.recipe_thumbnail,
+      })),
+    };
+
+    res.json(result);
+  } catch (err) {
+    console.log(err)
+    return res.status(500).json({
+      message:
+        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요."
+    });
+  }
+});
+
+// RECIPE_05 : 선호 situ만 만족하는 레시피 리스트 가져오기
+router.post("/getSituList", async (req, res) => {
+  const { situ_no } = req.body;
+  
+  try {
+    // 1. 만족하는 레시피 찾기
+    const [queryRes] = await pool.query(
+      'SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ?',
+      [situ_no]
+    );
+
+    // 2. 결과를 클라이언트로 전달
+    const result = {
+      situ_list: queryRes.map((recipe) => ({
+        recipe_no: recipe.recipe_no,
+        recipe_title: recipe.recipe_title,
+        recipe_thumbnail: recipe.recipe_thumbnail,
+      })),
+    };
+
+    res.json(result);
+  } catch (err) {
+    console.log(err)
+    return res.status(500).json({
+      message:
+        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요."
+    });
+  }
+});
+
+// RECIPE_06 : 특정 레시피 body 가져오기
 router.get("/getRecipe/:id", async (req, res) => {
   const convertToJSONArray = (str) => {
     return str.replace(/\(/g, "[").replace(/\)/g, "]").replace(/'/g, '"');
@@ -241,13 +253,12 @@ router.get("/getRecipe/:id", async (req, res) => {
   }
 });
 
-// RECIPE_05
+// RECIPE_07
 router.post("/getShop", async (req, res) => {
   // 0. 검색할 재료 이름 받아오기
-  console.log("RECIPE_05");
-  const { ing_name } = req.body;
+  const { ingredient_name } = req.body;
   const shopUrl = `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(
-    ing_name
+    ingredient_name
   )}&sort=sim`;
 
   // 1. 요청
@@ -255,14 +266,14 @@ router.post("/getShop", async (req, res) => {
     const response = await axios.get(shopUrl, {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "X-Naver-Client-Id": naverReq.client_id,
-        "X-Naver-Client-Secret": naverReq.client_secret,
+        "X-Naver-Client-Id": process.env.NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": process.env.NAVER_CLIENT_SECRET,
       },
     });
 
     res.status(200).json(response.data);
   } catch (err) {
-    console.log("@@@@@@@@@@@@@@@@@@", err);
+    console.log(err);
     res.status(500).json({
       message: "네이버 쇼핑 검색에 실패했습니다. 다시 시도해주세요.",
     });

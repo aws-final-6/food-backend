@@ -113,4 +113,49 @@ router.post("/removeBookmark", async (req, res) => {
   }
 });
 
+// ??? recipe에 있던거 훔쳐옴
+router.post("/updateBookmark", async (req, res) => {
+  const { user_id, recipe_no } = req.body;
+
+  try {
+    // 1. User Collection에서 user_id를 키값으로 해 유저 검색
+    const getUserProfile = await User.findOne({ user_id });
+
+    if (!getUserProfile) {
+      return res.status(400).json({ message: "잘못된 유저 정보입니다." });
+    }
+
+    // 1-1. 찾은 유저의 bookmark 값 반환 "user_bookmark": ["recipe_no", "recipe_no", "recipe_no"]
+    let { user_bookmark } = getUserProfile;
+
+    // 2. user_bookmark에 recipe_no가 있는지 판단
+    if (user_bookmark.includes(recipe_no)) {
+      // 2-1. 있을 시 삭제 후 배열 반환
+      user_bookmark = user_bookmark.filter((rn) => rn !== recipe_no);
+    } else {
+      // 2-2. 없을 시 추가 후 배열 반환
+      user_bookmark.push(recipe_no);
+    }
+
+    // 3. 해당 배열 user정보에 저장
+    const updateBookmark = await User.findOneAndUpdate(
+      { user_id },
+      {
+        user_bookmark,
+      }
+    );
+
+    if (!updateBookmark) {
+      return res.status(404).json({ message: "잘못된 유저 정보입니다." });
+    }
+
+    return res.status(200).json({ message: "즐겨찾기 목록에 추가되었습니다." });
+  } catch (err) {
+    console.error("Error updateing bookmark: ", err);
+    res
+      .status(500)
+      .json({ message: "즐겨찾기 추가에 실패했습니다. 다시 시도해주세요." });
+  }
+});
+
 module.exports = router;
