@@ -5,7 +5,6 @@ const qs = require("qs");
 
 const { pool } = require("../scripts/connectMySQL");
 const { validateSession, deleteSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
-const { ProfilingLevel } = require("mongodb");
 
 require("dotenv").config();
 router.use(express.json());
