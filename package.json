@@ -18,7 +18,9 @@
     "fs": "^0.0.1-security",
     "mongodb": "^6.7.0",
     "mongoose": "^8.4.1",
+    "mysql2": "^3.10.1",
     "qs": "^6.12.1",
+    "sequelize": "^6.37.3",
     "swagger-autogen": "^2.23.7"
   },
   "devDependencies": {

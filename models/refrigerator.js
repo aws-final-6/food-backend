@@ -1,39 +1,31 @@
-const mongoose = require("mongoose");
+module.exports = (sequelize, DataTypes) => {
+  const Refrigerator = sequelize.define('Refrigerator', {
+    refrigerator_id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    refrigerator_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    refrigerator_type: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    user_id: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+  }, {
+    tableName: 'Refrigerator',
+    timestamps: false,
+  });
 
-const IngredientSchema = new mongoose.Schema({
-  ing_name: { type: String, required: true },
-  ing_exdate: String, // 유통기한
-  ing_indate: String, // 냉장고에 재료를 넣은(실제로) 날짜
-  color: String,
-  ref_no: String,
-  _id: {
-    type: mongoose.Schema.Types.ObjectId,
-    default: () => new mongoose.Types.ObjectId(),
-  },
-});
+  Refrigerator.associate = (models) => {
+    Refrigerator.belongsTo(models.User, { foreignKey: 'user_id' });
+    Refrigerator.hasMany(models.RefrigeratorIngredients, { foreignKey: 'refrigerator_id' });
+  };
 
-const RefrigeratorSchema = new mongoose.Schema({
-  user_id: { type: String, required: true },
-  ref_1: {
-    ingredients: [IngredientSchema],
-    title: String,
-    refType: Number,
-  },
-  ref_2: {
-    ingredients: [IngredientSchema],
-    title: String,
-    refType: Number,
-  },
-  ref_3: {
-    ingredients: [IngredientSchema],
-    title: String,
-    refType: Number,
-  },
-  ref_4: {
-    ingredients: [IngredientSchema],
-    title: String,
-    refType: Number,
-  },
-});
-
-module.exports = mongoose.model("Refrigerator", RefrigeratorSchema);
+  return Refrigerator;
+};

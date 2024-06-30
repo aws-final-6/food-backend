@@ -1,18 +1,26 @@
-const mongoose = require("mongoose");
+module.exports = (sequelize, DataTypes) => {
+  const Seasonal = sequelize.define('Seasonal', {
+    seasonal_id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    seasonal_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    seasonal_month: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    seasonal_image: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+  }, {
+    tableName: 'Seasonal',
+    timestamps: false,
+  });
 
-const SeasonalSchema = new mongoose.Schema({
-  seasonal_name: String,
-  seasonal_month: Number,
-  seasonal_cate: String,
-  seasonal_area: String,
-  seasonal_prod_time: String,
-  seasonal_kind: String,
-  seasonal_efficacy: String,
-  seasonal_buytip: String,
-  seasonal_cooktip: String,
-  seasonal_preptip: String,
-  seasonal_detail_url: String,
-  seasonal_image_url: String,
-});
-
-module.exports = mongoose.model("Seasonal", SeasonalSchema);
+  return Seasonal;
+};

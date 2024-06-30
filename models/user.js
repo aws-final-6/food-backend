@@ -1,19 +1,30 @@
-const mongoose = require("mongoose");
-
-const UserSchema = new mongoose.Schema({
-  user_id: { type: String, required: true },
-  user_email: { type: String, required: true, unique: true },
-  user_nickname: { type: String, required: true },
-  user_provider: { type: String, required: true },
-  user_subscription: { type: Boolean, default: false },
-  user_prefer: [
-    {
-      cate_no: { type: Number },
-      situ_no: { type: Number },
+module.exports = (sequelize, DataTypes) => {
+  const User = sequelize.define('User', {
+    user_id: {
+      type: DataTypes.STRING,
+      primaryKey: true,
     },
-  ],
-  user_bookmark: [{ type: Number }],
-  user_searchfilter: [{ type: String }],
-});
+    user_email: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    user_provider: {
+      type: DataTypes.ENUM('kakao', 'naver', 'google'),
+      allowNull: false,
+    },
+  }, {
+    tableName: 'User',
+    timestamps: false,
+  });
 
-module.exports = mongoose.model("User", UserSchema);
+  User.associate = (models) => {
+    User.hasOne(models.Session, { foreignKey: 'user_id' });
+    User.hasMany(models.MyPage, { foreignKey: 'user_id' });
+    User.hasMany(models.Bookmark, { foreignKey: 'user_id' });
+    User.hasMany(models.SearchFilter, { foreignKey: 'user_id' });
+    User.hasMany(models.Refrigerator, { foreignKey: 'user_id' });
+    User.hasOne(models.Subscription, { foreignKey: 'user_id' });
+  };
+
+  return User;
+};

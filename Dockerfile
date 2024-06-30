@@ -2,7 +2,7 @@
 FROM node:18.19.1-alpine
 
 # Set the working directory
-WORKDIR /food-backend
+WORKDIR /food-backend-msq
 
 # Copy package.json and package-lock.json
 COPY package*.json ./

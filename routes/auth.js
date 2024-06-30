@@ -2,8 +2,10 @@ const express = require("express");
 const router = express.Router();
 const axios = require("axios");
 const qs = require("qs");
-const mongoose = require("mongoose");
-const User = require("../models/user");
+
+const { pool } = require("../scripts/connectMySQL");
+
+const User = require("../models/user");//////
 
 require("dotenv").config();
 router.use(express.json());
