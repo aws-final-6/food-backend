@@ -161,7 +161,7 @@ router.get("/autocomplete/:keyword", async (req, res) => {
 });
 
 // SEARCH_04
-router.post("/getIngSearchListFiltered", async (req, res) => {
+router.post("/getIngSearchList", async (req, res) => {
   // 제외필터 추가적용 재료검색
   const { keyword, user_id, keyword_filter } = req.body;
   // 0. 검색어 없을 때

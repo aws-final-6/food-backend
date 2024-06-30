@@ -1,19 +1,19 @@
 const express = require("express");
 const app = express();
 require("dotenv").config();
-// const { connectMongoDB, initDatabase } = require("./scripts/initDatabase");
+const { connectMongoDB, initDatabase } = require("./scripts/initDatabase");
 
 const port = process.env.PORT || 3000;
 
 // MongoDB 연결 설정 및 초기화
-// connectMongoDB()
-//   .then(() => {
-//     return initDatabase();
-//   })
-//   .catch((err) => {
-//     console.error("MongoDB 초기화 중 오류 발생:", err);
-//     process.exit(1);
-//   });
+connectMongoDB()
+  .then(() => {
+    return initDatabase();
+  })
+  .catch((err) => {
+    console.error("MongoDB 초기화 중 오류 발생:", err);
+    process.exit(1);
+  });
 
 //swagger
 const { swaggerUi, specs } = require("./swagger/swagger");
