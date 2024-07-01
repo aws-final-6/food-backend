@@ -1,63 +1,71 @@
 const express = require("express");
 const router = express.Router();
-const axios = require("axios");
 const qs = require("qs");
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
-const mongoose = require("mongoose");
-const User = require("../models/user");
-const Recipe = require("../models/recipemeta");
-const Seasonal = require("../models/seasonal");
-const Refrigerator = require("../models/refrigerator");
+
+const {pool} = require("../scripts/connectMySQL");
 
 router.use(express.json());
 
 // BaseUrl : /refrig
 
-// REFRIG_01
-router.post("/getRefrig", async (req, res) => {
+// REFRIG_01 : 냉장고 정보 가져오기
+router.post("/getRefrigWithIngredients", async (req, res) => {
   const { user_id } = req.body;
-
   // 1. user_id 체크
   if (!user_id) {
     return res.status(400).json({ message: "잘못된 유저 정보입니다." });
   }
 
   try {
-    // 2. user_id로 냉장고 정보가 있는지 체크
-    let refrigerator = await Refrigerator.findOne({ user_id });
+    // 2. user_id로 냉장고 및 재료 정보 가져오기
+    const [rows] = await pool.query(`
+      SELECT 
+        r.refrigerator_id, r.refrigerator_name, r.refrigerator_type,
+        ri.refrigerator_ing_id, ri.refrigerator_ing_name, ri.expired_date, ri.enter_date, ri.color
+      FROM Refrigerator r
+      LEFT JOIN RefrigeratorIngredients ri ON r.refrigerator_id = ri.refrigerator_id
+      WHERE r.user_id = ?
+    `, [user_id]);
 
-    // 2-1. 냉장고 없으면 기본 냉장고값으로 가져오기(빈 냉장고 4개)
-    if (!refrigerator) {
-      refrigerator = new Refrigerator({
-        user_id,
-        ref_1: { ingredients: [], title: "냉장고", refType: 1 },
-        ref_2: { ingredients: [], title: "냉동고", refType: 2 },
-        ref_3: { ingredients: [], title: "김치냉장고", refType: 1 },
-        ref_4: { ingredients: [], title: "선반", refType: 3 },
-      });
-      res.status(200).json(refrigerator);
-    } else {
-      // 2-2. 냉장고 존재하면 있는 값 가져오기
-      res.status(200).json({
-        refrigerator: {
-          ref_1: refrigerator.ref_1,
-          ref_2: refrigerator.ref_2,
-          ref_3: refrigerator.ref_3,
-          ref_4: refrigerator.ref_4,
-        },
-      });
-    }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      message: "냉장고 데이터를 불러오지 못했습니다. 다시 시도해주세요.",
+    // 3. 결과값 클라이언트로 보내기 위해 데이터 구조화
+    const result = {};
+    rows.forEach(row => {
+      const { refrigerator_id, refrigerator_name, refrigerator_type, refrigerator_ing_id, refrigerator_ing_name, expired_date, enter_date, color } = row;
+      if (!result[refrigerator_id]) {
+        result[refrigerator_id] = {
+          refrigerator_id,
+          refrigerator_name,
+          refrigerator_type,
+          ingredients: []
+        };
+      }
+      if (refrigerator_ing_id) {
+        result[refrigerator_id].ingredients.push({
+          refrigerator_ing_id,
+          refrigerator_ing_name,
+          expired_date,
+          enter_date,
+          color
+        });
+      }
     });
+
+    // 결과가 없는 경우 처리
+    if (Object.keys(result).length === 0) {
+      return res.status(404).json({ message: "냉장고 정보를 찾을 수 없습니다." });
+    }
+
+    return res.status(200).json(Object.values(result));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "냉장고 데이터를 불러오지 못했습니다. 다시 시도해주세요." });
   }
 });
 
-// REFRIG_02
+// REFRIG_02 : 재료 수기로 입력받기 
 router.post("/addIngredient", async (req, res) => {
   // 1. body값 받기
   const { user_id, ref_no, ing_name, ing_exdate, ing_indate, color } = req.body;
