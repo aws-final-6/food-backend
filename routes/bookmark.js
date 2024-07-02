@@ -1,31 +1,39 @@
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
-const User = require("../models/user");
-const Recipe = require("../models/recipemeta");
+
+const { pool } = require("../scripts/connectMySQL");
+const { validateSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
 
 router.use(express.json());
 
 // BaseUrl : /bookmark
 
-// BOOKMK_01
+// BOOKMK_01 : 북마크 가져오기 - 레시피 목록에서 쓰일 북마크 목록
 router.post("/getBookmark", async (req, res) => {
-  // Bookmark list - Home
-  // recipe_no 배열 반환
-  const { user_id } = req.body;
+  const { user_id, access_token } = req.body;
+
+  // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
+  const isValidSession = await validateSession(user_id, access_token);
+  if (!isValidSession) {
+    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+  }
+
+  // 1. 입력 데이터 체크
+  if (!user_id) {
+    return res.status(400).json({ message: "잘못된 유저 정보입니다." });
+  }
 
   try {
-    // 1. User Collection에서 user_id를 키값으로 해 유저 검색
-    const getUserProfile = await User.findOne({ user_id });
+    // 2. 북마크 목록 가져오기
+    const [rows] = await pool.query(
+      "SELECT recipe_id FROM Bookmark WHERE user_id = ?",
+      [user_id]
+    );
 
-    if (!getUserProfile) {
-      return res.status(400).json({ message: "잘못된 유저 정보입니다." });
-    }
+    // 3. 북마크 목록 반환
+    const user_bookmark = rows.map((row) => row.recipe_id);
 
-    // 1-1. 찾은 유저의 bookmark 값 반환 "user_bookmark": ["recipe_no", "recipe_no", "recipe_no"]
-    let { user_bookmark } = getUserProfile;
-
-    return res.status(200).json({ bookmark: user_bookmark });
+    return res.status(200).json({ user_bookmark });
   } catch (err) {
     console.error("Error getting bookmark: ", err);
     res.status(500).json({
@@ -34,127 +42,116 @@ router.post("/getBookmark", async (req, res) => {
   }
 });
 
-// BOOKMK_02
+// BOOKMK_02 : 북마크 가져오기 - 마이페이지에서 쓰일 북마크 목록
 router.post("/getBookmarkList", async (req, res) => {
-  // Bookmark list - Mypage
-  // recipe_no, recipe_title 배열 반환
-  const { user_id } = req.body;
-  try {
-    // 1. User Collection에서 user_id를 키값으로 해 유저 검색
-    const getUserProfile = await User.findOne({ user_id });
+  const { user_id, access_token } = req.body;
 
-    if (!getUserProfile) {
-      return res.status(400).json({ message: "잘못된 유저 정보입니다." });
-    }
-
-    // 1-1. 찾은 유저의 bookmark 값 반환 "user_bookmark": ["recipe_no", "recipe_no", "recipe_no"]
-    const user_bookmark = getUserProfile.user_bookmark;
-
-    // user_bookmark 값이 없거나 배열의 길이가 0인 경우
-    if (!user_bookmark || user_bookmark.length === 0) {
-      return res.status(200).json({ user_bookmark: [] });
-    }
-
-    // 2. Recipe Collection에서 bookmark된 recipe_no로 레시피 검색
-    const recipes = await Recipe.find(
-      { recipe_no: { $in: user_bookmark } },
-      "recipe_no recipe_title"
-    );
-
-    // 3. 검색된 레시피를 반환
-    return res.status(200).json({ user_bookmark: recipes });
-  } catch (err) {
-    return res.status(500).json({
-      message: "즐겨찾기 목록 불러오기에 실패했습니다. 다시 시도해주세요.",
-    });
+  // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
+  const isValidSession = await validateSession(user_id, access_token);
+  if (!isValidSession) {
+    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
   }
-});
 
-// BOOKMK_03
-router.post("/removeBookmark", async (req, res) => {
-  const { user_id, recipe_no } = req.body;
+  // 1. 입력 데이터 체크
+  if (!user_id) {
+    return res.status(400).json({ message: "잘못된 유저 정보입니다." });
+  }
+
   try {
-    // 1. User Collection에서 user_id를 키값으로 해 유저 검색
-    const getUserProfile = await User.findOne({ user_id });
-
-    if (!getUserProfile) {
-      return res.status(400).json({ message: "잘못된 유저 정보입니다." });
-    }
-
-    // 1-1. 찾은 유저의 bookmark 값 반환 "user_bookmark": ["recipe_no", "recipe_no", "recipe_no"]
-    let { user_bookmark } = getUserProfile;
-
-    // user_bookmark 값이 없거나 배열의 길이가 0인 경우
-    if (!user_bookmark || user_bookmark.length === 0) {
-      return res.status(200).json({ message: "즐겨찾기한 레시피가 없습니다." });
-    }
-
-    // 2. user_bookmark에서 recipe_no 삭제한 배열 반환
-    user_bookmark = user_bookmark.filter((rn) => rn !== recipe_no);
-
-    // 3. 해당 배열 user정보에 저장
-    const updateBookmark = await User.findOneAndUpdate(
-      { user_id },
-      {
-        user_bookmark,
-      }
+    // 2. 북마크된 레시피 목록 가져오기
+    const [rows] = await pool.query(
+      `SELECT b.recipe_id, r.recipe_title FROM Bookmark b JOIN Recipe r ON b.recipe_id = r.recipe_id WHERE b.user_id = ?`,
+      [user_id]
     );
 
-    if (!updateBookmark) {
-      return res.status(404).json({ message: "잘못된 유저 정보입니다." });
-    }
+    // 3. 북마크 목록 반환
+    const user_bookmark = rows.map((row) => ({
+      recipe_no: row.recipe_id.toString(),
+      recipe_title: row.recipe_title,
+    }));
 
-    return res.status(200).json({ message: "즐겨찾기 목록이 저장되었습니다" });
+    return res.status(200).json({ user_bookmark });
   } catch (err) {
-    console.error("Error updateing bookmark: ", err);
+    console.error("Error getting bookmark: ", err);
     res.status(500).json({
-      message: "즐겨찾기 목록 저장에 실패했습니다. 다시 시도해주세요.",
+      message: "즐겨찾기 가져오기에 실패했습니다. 다시 시도해주세요.",
     });
   }
 });
 
-// ??? recipe에 있던거 훔쳐옴
-router.post("/updateBookmark", async (req, res) => {
-  const { user_id, recipe_no } = req.body;
+// BOOKMK_03 : 북마크 삭제
+router.post("/removeBookmark", async (req, res) => {
+  const { user_id, access_token, recipe_id } = req.body;
+
+  // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
+  const isValidSession = await validateSession(user_id, access_token);
+  if (!isValidSession) {
+    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+  }
+
+  // 1. 입력 데이터 체크
+  if (!user_id || !recipe_id) {
+    return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
+  }
 
   try {
-    // 1. User Collection에서 user_id를 키값으로 해 유저 검색
-    const getUserProfile = await User.findOne({ user_id });
-
-    if (!getUserProfile) {
-      return res.status(400).json({ message: "잘못된 유저 정보입니다." });
-    }
-
-    // 1-1. 찾은 유저의 bookmark 값 반환 "user_bookmark": ["recipe_no", "recipe_no", "recipe_no"]
-    let { user_bookmark } = getUserProfile;
-
-    // 2. user_bookmark에 recipe_no가 있는지 판단
-    if (user_bookmark.includes(recipe_no)) {
-      // 2-1. 있을 시 삭제 후 배열 반환
-      user_bookmark = user_bookmark.filter((rn) => rn !== recipe_no);
-    } else {
-      // 2-2. 없을 시 추가 후 배열 반환
-      user_bookmark.push(recipe_no);
-    }
-
-    // 3. 해당 배열 user정보에 저장
-    const updateBookmark = await User.findOneAndUpdate(
-      { user_id },
-      {
-        user_bookmark,
-      }
+    // 2. 북마크 삭제
+    const [result] = await pool.query(
+      "DELETE FROM Bookmark WHERE user_id = ? AND recipe_id = ?",
+      [user_id, recipe_id]
     );
 
-    if (!updateBookmark) {
-      return res.status(404).json({ message: "잘못된 유저 정보입니다." });
+    // 3. 북마크 삭제 결과 확인
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "북마크를 찾을 수 없습니다." });
     }
 
-    return res.status(200).json({ message: "즐겨찾기 목록에 추가되었습니다." });
+    return res
+      .status(200)
+      .json({ message: "북마크가 성공적으로 삭제되었습니다." });
   } catch (err) {
-    console.error("Error updateing bookmark: ", err);
-    res
-      .status(500)
-      .json({ message: "즐겨찾기 추가에 실패했습니다. 다시 시도해주세요." });
+    console.error("Error removing bookmark: ", err);
+    res.status(500).json({
+      message: "북마크 삭제에 실패했습니다. 다시 시도해주세요.",
+    });
+  }
+});
+
+// BOOKMK_04 : 북마크 추가
+router.post("/updateBookmark", async (req, res) => {
+  const { user_id, access_token, recipe_id } = req.body;
+
+  // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
+  const isValidSession = await validateSession(user_id, access_token);
+  if (!isValidSession) {
+    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+  }
+
+  // 1. 입력 데이터 체크
+  if (!user_id || !recipe_id) {
+    return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
+  }
+
+  try {
+    // 2. 북마크 추가
+    await pool.query(
+      "INSERT INTO Bookmark (user_id, recipe_id) VALUES (?, ?)",
+      [user_id, recipe_id]
+    );
+
+    return res
+      .status(200)
+      .json({ message: "북마크가 성공적으로 추가되었습니다." });
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY") {
+      return res
+        .status(409)
+        .json({ message: "이미 북마크에 추가된 레시피입니다." });
+    }
+    console.error("Error adding bookmark: ", err);
+    res.status(500).json({
+      message: "북마크 추가에 실패했습니다. 다시 시도해주세요.",
+    });
   }
 });
 
