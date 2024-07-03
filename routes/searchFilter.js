@@ -16,7 +16,9 @@ router.post("/getFilterList", async (req, res) => {
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
     console.log("Backend FILTER_01: Unauthorized, ", user_id);
-    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
   }
 
   try {
@@ -46,7 +48,9 @@ router.post("/updateFilterList", async (req, res) => {
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
     console.log("Backend FILTER_02: Unauthorized, ", user_id);
-    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
   }
 
   // 1. 입력 데이터 체크

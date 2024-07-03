@@ -5,6 +5,7 @@ const qs = require("qs");
 
 const { pool } = require("../scripts/connectMySQL");
 const { validateSession, deleteSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
+const { errLog } = require("../utils/logUtils");
 
 require("dotenv").config();
 router.use(express.json());
@@ -47,8 +48,10 @@ router.post("/checkToken", async (req, res) => {
     // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
     const isValidSession = await validateSession(user_id, access_token);
     if (!isValidSession) {
-      console.log("Backend AUTH_01: Unauthorized, ", user_id);
-      return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+      errLog("AUTH_01", 401, "Unauthorized", { user_id: user_id });
+      return res
+        .status(401)
+        .json({ message: "user_id와 access_token이 일치하지 않습니다." });
     }
 
     // 1. switch-case문으로 user_provider값에 따라 코드 실행
@@ -67,12 +70,15 @@ router.post("/checkToken", async (req, res) => {
           if (err.response && err.response.status === 401) {
             // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
-            console.log("Backend AUTH_01: Unauthorized, ", user_id);
+            errLog("AUTH_01", 419, "Token Expired", { user_id: user_id });
             res
-              .status(401)
+              .status(419)
               .json({ message: "유효하지 않은 액세스 토큰입니다." });
           } else {
-            console.log("Backend AUTH_01: Server Error, ", user_id);
+            errLog("AUTH_01", 500, "Internal Server Error", {
+              user_id: user_id,
+              error: err.message,
+            });
             res.status(500).json({
               message: "카카오 토큰 검증에 실패했습니다. 다시 시도해주세요.",
             });
@@ -94,12 +100,15 @@ router.post("/checkToken", async (req, res) => {
           if (err.response && err.response.status === 401) {
             // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
-            console.log("Backend AUTH_01: Unauthorized, ", user_id);
+            errLog("AUTH_01", 419, "Token Expired", { user_id: user_id });
             res
-              .status(401)
+              .status(419)
               .json({ message: "유효하지 않은 액세스 토큰입니다." });
           } else {
-            console.log("Backend AUTH_01: Server Error, ", user_id);
+            errLog("AUTH_01", 500, "Internal Server Error", {
+              user_id: user_id,
+              error: err.message,
+            });
             res.status(500).json({
               message: "네이버 토큰 검증에 실패했습니다. 다시 시도해주세요.",
             });
@@ -121,12 +130,15 @@ router.post("/checkToken", async (req, res) => {
           if (err.response && err.response.status === 401) {
             // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
-            console.log("Backend AUTH_01: Unauthorized, ", user_id);
+            errLog("AUTH_01", 419, "Token Expired", { user_id: user_id });
             res
-              .status(401)
+              .status(419)
               .json({ message: "유효하지 않은 액세스 토큰입니다." });
           } else {
-            console.log("Backend AUTH_01: Server Error, ", user_id);
+            errLog("AUTH_01", 500, "Internal Server Error", {
+              user_id: user_id,
+              error: err.message,
+            });
             res.status(500).json({
               message: "구글 토큰 검증에 실패했습니다. 다시 시도해주세요.",
             });
@@ -135,12 +147,18 @@ router.post("/checkToken", async (req, res) => {
         break;
 
       default:
-        console.log("Backend AUTH_01: Bad Request, ", user_id);
+        errLog("AUTH_01", 400, "Bad Request", {
+          user_id: user_id,
+          user_provider: user_provider,
+        });
         res.status(400).json({ message: "유효하지 않은 프로바이더 입니다." });
         break;
     }
   } catch (err) {
-    console.error("Backend AUTH_01: ", err);
+    errLog("AUTH_01", 500, "Internal Server Error", {
+      user_id: user_id,
+      error: err.message,
+    });
     res.status(500).json({
       message: "토큰 검증에 실패했습니다. 다시 시도해주세요.",
     });
@@ -496,7 +514,9 @@ router.post("/logout", async (req, res) => {
     // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
     const isValidSession = await validateSession(user_id, access_token);
     if (!isValidSession) {
-      return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+      return res
+        .status(401)
+        .json({ message: "user_id와 access_token이 일치하지 않습니다." });
     }
 
     switch (user_provider) {

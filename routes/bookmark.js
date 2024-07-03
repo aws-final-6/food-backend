@@ -15,7 +15,9 @@ router.post("/getBookmark", async (req, res) => {
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
-    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
   }
 
   // 1. 입력 데이터 체크
@@ -50,7 +52,9 @@ router.post("/getBookmarkList", async (req, res) => {
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
     console.log("Backend BOOKMK_02: Unauthorized, ", user_id);
-    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
   }
 
   // 1. 입력 데이터 체크
@@ -89,7 +93,9 @@ router.post("/removeBookmark", async (req, res) => {
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
     console.log("Backend BOOKMK_03: Unauthorized, ", user_id);
-    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
   }
 
   // 1. 입력 데이터 체크
@@ -124,7 +130,9 @@ router.post("/updateBookmark", async (req, res) => {
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
     console.log("Backend BOOKMK_03: Unauthorized, ", user_id);
-    return res.status(401).json({ message: "유효하지 않은 세션입니다." });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
   }
 
   // 1. 입력 데이터 체크
