@@ -188,13 +188,13 @@ router.post("/requestToken", function (req, res) {
         break;
       default:
         //provider 없을 경우 400
-        console.log("Backend AUTH_02: Bad Request, ", user_provider);
+        errLog("AUTH_02", 400, "Bad Request", { user_provider: user_provider });
         return res
           .status(400)
           .json({ message: "유효하지 않은 프로바이더 입니다." });
     }
   } catch (err) {
-    console.error("Backend AUTH_02: ", err);
+    errLog("AUTH_02", 500, "Internal Server Error", { error: err.message });
     res
       .status(500)
       .json({ message: "토큰 발급 요청에 실패했습니다. 다시 시도해주세요." });
