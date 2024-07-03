@@ -13,10 +13,17 @@ router.post("/getProfile", async (req, res) => {
 
   try {
     // 1. User 테이블에서 user_id를 키값으로 유저 검색
-    const [getUserProfile] = await pool.query('SELECT * FROM User WHERE user_id = ?', [user_id]);
-    const [getMyPageProfile] = await pool.query('SELECT * FROM MyPage WHERE user_id = ?', [user_id]);
+    const [getUserProfile] = await pool.query(
+      "SELECT * FROM User WHERE user_id = ?",
+      [user_id]
+    );
+    const [getMyPageProfile] = await pool.query(
+      "SELECT * FROM MyPage WHERE user_id = ?",
+      [user_id]
+    );
 
     if (getUserProfile.length === 0 || getMyPageProfile.length === 0) {
+      console.log("Backend MYPAGE_01: Bad Request, ", user_id);
       return res.status(400).json({ message: "잘못된 유저 정보입니다." });
     }
 
@@ -35,7 +42,7 @@ router.post("/getProfile", async (req, res) => {
       user_prefer,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Backend MYPAGE_01: ", err);
     return res.status(500).json({
       message: "마이페이지 불러오기에 실패했습니다. 다시 시도해주세요.",
     });
@@ -45,24 +52,25 @@ router.post("/getProfile", async (req, res) => {
 // MYPAGE_02 : 마이페이지 수정
 // @@@@@@@@@@@@@@@@@@@@ 질문 : user테이블로 뺐던 email은 같이 던져줄건지? 일단 빼긴 했는데 ㅎ...
 router.post("/updateProfile", async (req, res) => {
-  const {
-    user_id,
-    user_nickname,
-    user_subscription,
-    user_prefer,
-  } = req.body;
+  const { user_id, user_nickname, user_subscription, user_prefer } = req.body;
 
   // 3. 최종적인 회원 정보 업데이트 던지기
   try {
     // MyPage 테이블 업데이트
     await pool.query(
-      'UPDATE MyPage SET user_nickname = ?, user_subscription = ?, user_prefer = ?, user_searchfilter = ? WHERE user_id = ?',
-      [user_nickname, user_subscription, JSON.stringify(user_prefer), JSON.stringify(user_searchfilter), user_id]
+      "UPDATE MyPage SET user_nickname = ?, user_subscription = ?, user_prefer = ?, user_searchfilter = ? WHERE user_id = ?",
+      [
+        user_nickname,
+        user_subscription,
+        JSON.stringify(user_prefer),
+        JSON.stringify(user_searchfilter),
+        user_id,
+      ]
     );
 
     res.status(200).json({ message: "마이페이지가 저장되었습니다." });
   } catch (err) {
-    console.error(err);
+    console.error("Backend MYPAGE_02: ", err);
     res
       .status(500)
       .json({ message: "마이페이지 저장에 실패했습니다. 다시 시도해주세요." });

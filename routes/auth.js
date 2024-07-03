@@ -41,20 +41,19 @@ const front_uri = process.env.FRONT_URI;
 
 // AUTH_01 : 토큰검증
 router.post("/checkToken", async (req, res) => {
-  console.log("access token 유효성 검사");
   const { user_id, user_provider, access_token } = req.body;
 
   try {
     // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
     const isValidSession = await validateSession(user_id, access_token);
     if (!isValidSession) {
+      console.log("Backend AUTH_01: Unauthorized, ", user_id);
       return res.status(401).json({ message: "유효하지 않은 세션입니다." });
     }
 
     // 1. switch-case문으로 user_provider값에 따라 코드 실행
     switch (user_provider) {
       case "kakao":
-        console.log("kakao access token validation check");
         const kakaoAuthURL = `https://kapi.kakao.com/v1/user/access_token_info`;
 
         try {
@@ -62,16 +61,18 @@ router.post("/checkToken", async (req, res) => {
             headers: {
               Authorization: `Bearer ${access_token}`,
             },
-          });-
+          });
           res.status(200).json({ message: "유효한 액세스 토큰입니다." });
         } catch (err) {
           if (err.response && err.response.status === 401) {
             // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
+            console.log("Backend AUTH_01: Unauthorized, ", user_id);
             res
               .status(401)
               .json({ message: "유효하지 않은 액세스 토큰입니다." });
           } else {
+            console.log("Backend AUTH_01: Server Error, ", user_id);
             res.status(500).json({
               message: "카카오 토큰 검증에 실패했습니다. 다시 시도해주세요.",
             });
@@ -80,7 +81,6 @@ router.post("/checkToken", async (req, res) => {
         break;
 
       case "naver":
-        console.log("naver access token validation check");
         const naverAuthURL = `https://openapi.naver.com/v1/nid/me`;
 
         try {
@@ -94,10 +94,12 @@ router.post("/checkToken", async (req, res) => {
           if (err.response && err.response.status === 401) {
             // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
+            console.log("Backend AUTH_01: Unauthorized, ", user_id);
             res
               .status(401)
               .json({ message: "유효하지 않은 액세스 토큰입니다." });
           } else {
+            console.log("Backend AUTH_01: Server Error, ", user_id);
             res.status(500).json({
               message: "네이버 토큰 검증에 실패했습니다. 다시 시도해주세요.",
             });
@@ -106,7 +108,6 @@ router.post("/checkToken", async (req, res) => {
         break;
 
       case "google":
-        console.log("google access token validation check");
         const googleAuthURL = `https://oauth2.googleapis.com/tokeninfo`;
 
         try {
@@ -120,10 +121,12 @@ router.post("/checkToken", async (req, res) => {
           if (err.response && err.response.status === 401) {
             // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
+            console.log("Backend AUTH_01: Unauthorized, ", user_id);
             res
               .status(401)
               .json({ message: "유효하지 않은 액세스 토큰입니다." });
           } else {
+            console.log("Backend AUTH_01: Server Error, ", user_id);
             res.status(500).json({
               message: "구글 토큰 검증에 실패했습니다. 다시 시도해주세요.",
             });
@@ -132,11 +135,12 @@ router.post("/checkToken", async (req, res) => {
         break;
 
       default:
+        console.log("Backend AUTH_01: Bad Request, ", user_id);
         res.status(400).json({ message: "유효하지 않은 프로바이더 입니다." });
         break;
     }
   } catch (err) {
-    console.error("Unexpected error:", err);
+    console.error("Backend AUTH_01: ", err);
     res.status(500).json({
       message: "토큰 검증에 실패했습니다. 다시 시도해주세요.",
     });
@@ -146,19 +150,16 @@ router.post("/checkToken", async (req, res) => {
 // AUTH_02 : 토큰요청
 router.post("/requestToken", function (req, res) {
   const { user_provider } = req.body;
-  console.log(`token 요청 ${user_provider}`);
 
   try {
     switch (user_provider) {
       // kakao OAuth 인증 요청
       case "kakao":
-        console.log("카카오");
         const kakaoAuthURL = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${kakaoReq.client_id}&redirect_uri=${kakaoReq.redirect_uri}&scope=${kakaoReq.scope}`;
         res.status(200).send(kakaoAuthURL);
         break;
       // naver OAuth 인증 요청
       case "naver":
-        console.log("네이버");
         const naverAuthURL = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${naverReq.client_id}&redirect_uri=${naverReq.redirect_uri}&state=${naverReq.state}`;
         res.status(200).send(naverAuthURL);
         break;
@@ -169,12 +170,13 @@ router.post("/requestToken", function (req, res) {
         break;
       default:
         //provider 없을 경우 400
+        console.log("Backend AUTH_02: Bad Request, ", user_provider);
         return res
           .status(400)
           .json({ message: "유효하지 않은 프로바이더 입니다." });
     }
   } catch (err) {
-    console.error(`Error requesting token for ${provider}:`, err);
+    console.error("Backend AUTH_02: ", err);
     res
       .status(500)
       .json({ message: "토큰 발급 요청에 실패했습니다. 다시 시도해주세요." });
@@ -184,30 +186,29 @@ router.post("/requestToken", function (req, res) {
 // AUTH_03 : 토큰재발급 @@@@@@@@@@@@@@@@@@@@@@@ 0701 의견교류 필요 @@@@@@@@@@@@@@@@@@@@@@
 // => user_id를 받..긴하는거같은데 API테스트 아직 안해봐서 잘모르겠음. 급한거먼저 넘길랭
 // 그리고 이외에도 refresh_token 어디서 받을지도 회의 필요
-router.post("/refreshToken", async(req,res)=>{
-  const {user_provider, refresh_token} = req.body;
-  console.log(`token refresh요청 ${user_provider}`);
-  
-  try{
-    switch(user_provider){
+router.post("/refreshToken", async (req, res) => {
+  const { user_provider, refresh_token } = req.body;
+
+  try {
+    switch (user_provider) {
       case "kakao":
-        console.log("카카오");
         const kakaoURL = "https://kauth.kakao.com/oauth/token";
         const tokenData = {
           grant_type: "refresh_code",
           client_id: kakaoReq.client_id,
           client_secret: kakaoReq.client_secret,
-          refresh_token
+          refresh_token,
         };
 
-        try{
+        try {
           const response = await axios.post(kakaoURL, qs.stringify(tokenData), {
             headers: {
               "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
             },
           });
 
-          const { access_token, refresh_token: new_refresh_token } = response.data;
+          const { access_token, refresh_token: new_refresh_token } =
+            response.data;
           // 사용자 정보를 가져와서 user_id를 얻습니다.
           const userInfoUrl = "https://kapi.kakao.com/v2/user/me";
           const userInfoResponse = await axios.get(userInfoUrl, {
@@ -220,17 +221,24 @@ router.post("/refreshToken", async(req,res)=>{
           const user_id = String(userInfo.id);
 
           // Session 테이블에 갱신된 토큰 정보를 업데이트합니다.
-          await pool.query('UPDATE Session SET access_token = ? WHERE user_id = ?', [access_token, user_id]);
+          await pool.query(
+            "UPDATE Session SET access_token = ? WHERE user_id = ?",
+            [access_token, user_id]
+          );
 
           // 새로운 refresh_token이 발급되면 업데이트
           if (new_refresh_token) {
-            await pool.query('UPDATE Session SET refresh_token = ? WHERE user_id = ?', [new_refresh_token, user_id]);
+            await pool.query(
+              "UPDATE Session SET refresh_token = ? WHERE user_id = ?",
+              [new_refresh_token, user_id]
+            );
           }
-
           res.status(200).json({ user_id, access_token });
         } catch (err) {
-          console.error("Error during Kakao token refresh:", err);
-          res.status(500).json({ message: "카카오 토큰 갱신에 실패했습니다. 다시 시도해주세요." });
+          console.error("Backend AUTH_03: ", err);
+          res.status(500).json({
+            message: "카카오 토큰 갱신에 실패했습니다. 다시 시도해주세요.",
+          });
         }
 
         break;
@@ -238,14 +246,15 @@ router.post("/refreshToken", async(req,res)=>{
         break;
       case "google":
         break;
-      dafault:
-        //provider 없을 경우 400
+      //provider 없을 경우 400
+      default:
+        console.log("Backend AUTH_03: Bad Request, ", user_provider);
         return res
-        .status(400)
-        .json({ message: "유효하지 않은 프로바이더 입니다." });
+          .status(400)
+          .json({ message: "유효하지 않은 프로바이더 입니다." });
     }
   } catch (err) {
-    console.error(`Error requesting token for ${provider}:`, err);
+    console.error("Backend AUTH_03: ", err);
     res
       .status(500)
       .json({ message: "토큰 재발급 요청에 실패했습니다. 다시 시도해주세요." });
@@ -287,12 +296,20 @@ router.get("/kakao/redirect", async (req, res) => {
     const user_email = userInfo.kakao_account.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User collection에 있는지(회원인지) 확인
-    const [rows] = await pool.query('SELECT * FROM User WHERE user_id = ?', [user_id]);
+    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+      user_id,
+    ]);
 
     if (rows.length === 0) {
       // 2-2. DB에 없을 경우, 새 사용자로 등록
-      await pool.query('INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)', [user_id, user_email, 'kakao']);
-      await pool.query('INSERT INTO Session (user_id, access_token) VALUES (?, ?)', [user_id, access_token]);
+      await pool.query(
+        "INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)",
+        [user_id, user_email, "kakao"]
+      );
+      await pool.query(
+        "INSERT INTO Session (user_id, access_token) VALUES (?, ?)",
+        [user_id, access_token]
+      );
 
       res.status(200).redirect(
         // user_id, access_token, refresh_token, user_email, new=true 전송
@@ -300,7 +317,10 @@ router.get("/kakao/redirect", async (req, res) => {
       );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query('UPDATE Session SET access_token = ? WHERE user_id = ?', [access_token, user_id]);
+      await pool.query(
+        "UPDATE Session SET access_token = ? WHERE user_id = ?",
+        [access_token, user_id]
+      );
 
       res.status(200).redirect(
         // user_id, access_token, refresh_token, new=false 전송
@@ -308,14 +328,14 @@ router.get("/kakao/redirect", async (req, res) => {
       );
     }
   } catch (err) {
-    console.error("Error during Kakao login:", err);
+    console.error("Backend AUTH_04: ", err);
     res
       .status(500)
       .json({ message: "카카오 로그인에 실패했습니다. 다시 시도해주세요." });
   }
 });
 
-// AUTH_04 : 네이버 리다이렉트
+// AUTH_05 : 네이버 리다이렉트
 router.get("/naver/redirect", async (req, res) => {
   // 0. authorization code를 AUTH_02에서 받아옴
   const { code, state } = req.query;
@@ -350,33 +370,48 @@ router.get("/naver/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query('SELECT * FROM User WHERE user_id = ?', [user_id]);
+    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+      user_id,
+    ]);
 
     if (rows.length === 0) {
       // 2-2. DB에 없을 경우, 새 사용자로 등록
-      await pool.query('INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)', [user_id, user_email, 'naver']);
-      await pool.query('INSERT INTO Session (user_id, access_token) VALUES (?, ?)', [user_id, access_token]);
-
-      res.status(200).redirect(
-        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}`
+      await pool.query(
+        "INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)",
+        [user_id, user_email, "naver"]
       );
+      await pool.query(
+        "INSERT INTO Session (user_id, access_token) VALUES (?, ?)",
+        [user_id, access_token]
+      );
+
+      res
+        .status(200)
+        .redirect(
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}`
+        );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query('UPDATE Session SET access_token = ? WHERE user_id = ?', [access_token, user_id]);
-
-      res.status(200).redirect(
-        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false`
+      await pool.query(
+        "UPDATE Session SET access_token = ? WHERE user_id = ?",
+        [access_token, user_id]
       );
+
+      res
+        .status(200)
+        .redirect(
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false`
+        );
     }
   } catch (err) {
-    console.error("Error during Naver login:", err);
+    console.error("Backend AUTH_04: ", err);
     res
       .status(500)
       .json({ message: "네이버 로그인에 실패했습니다. 다시 시도해주세요." });
   }
 });
 
-// AUTH_05 : 구글 리다이렉트
+// AUTH_06 : 구글 리다이렉트
 router.get("/google/redirect", async (req, res) => {
   // 0. authorization code를 AUTH_02에서 받아옴
   const { code } = req.query;
@@ -412,37 +447,51 @@ router.get("/google/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query('SELECT * FROM User WHERE user_id = ?', [user_id]);
+    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+      user_id,
+    ]);
 
     if (rows.length === 0) {
       // 2-2. DB에 없을 경우, 새 사용자로 등록
-      await pool.query('INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)', [user_id, user_email, 'google']);
-      await pool.query('INSERT INTO Session (user_id, access_token) VALUES (?, ?)', [user_id, access_token]);
-
-      res.status(200).redirect(
-        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}`
+      await pool.query(
+        "INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)",
+        [user_id, user_email, "google"]
       );
+      await pool.query(
+        "INSERT INTO Session (user_id, access_token) VALUES (?, ?)",
+        [user_id, access_token]
+      );
+
+      res
+        .status(200)
+        .redirect(
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}`
+        );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query('UPDATE Session SET access_token = ? WHERE user_id = ?', [access_token, user_id]);
-
-      res.status(200).redirect(
-        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false`
+      await pool.query(
+        "UPDATE Session SET access_token = ? WHERE user_id = ?",
+        [access_token, user_id]
       );
+
+      res
+        .status(200)
+        .redirect(
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false`
+        );
     }
   } catch (err) {
-    console.error("Error during Google login:", err);
+    console.error("Backend AUTH_05: ", err);
     res
       .status(500)
       .json({ message: "구글 로그인에 실패했습니다. 다시 시도해주세요." });
   }
 });
 
-// AUTH_06 : 로그아웃
+// AUTH_07 : 로그아웃
 router.post("/logout", async (req, res) => {
-  console.log("로그아웃 요청");
   const { user_id, user_provider, access_token } = req.body;
-  
+
   try {
     // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
     const isValidSession = await validateSession(user_id, access_token);
@@ -500,37 +549,39 @@ router.post("/logout", async (req, res) => {
           .status(200)
           .json({ message: "구글 로그아웃을 완료했습니다." });
       default:
-        //provider 없을 경우 404
+        //provider 없을 경우 400
+        console.log("Backend AUTH_06: Bad Request, ", user_provider);
         return res
           .status(404)
           .json({ message: "유효하지 않은 프로바이더 입니다." });
     }
   } catch (err) {
-    console.error(`Error requesting token for ${provider}:`, err);
+    console.error("Backend AUTH_06: ", err);
     res
       .status(500)
       .json({ message: "로그아웃에 실패했습니다. 다시 시도해주세요." });
   }
 });
 
-// AUTH_07 : 회원가입
+// AUTH_08 : 회원가입
 router.post("/signup", async (req, res) => {
-  console.log("회원가입 완료 버튼 클릭");
   const {
     user_id,
+    access_token,
     user_email,
     user_nickname,
-    user_provider,
     user_subscription,
     user_prefer,
   } = req.body;
 
-  const user_prefer_str = JSON.stringify(user_prefer);
+  let connection;
 
-  // 3. 최종적인 정보 회원 가입 던지기
   try {
-    // 3-1. 이메일 중복체크
-    const [existingUsers] = await pool.query('SELECT * FROM User WHERE user_email = ?', [user_email]);
+    // 1. 이메일 중복 체크
+    const [existingUsers] = await pool.query(
+      "SELECT * FROM User WHERE user_email = ?",
+      [user_email]
+    );
 
     if (existingUsers.length > 0) {
       return res.status(400).json({
@@ -538,19 +589,54 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    // 3-2. 중복체크 안걸리면 진행
-    await pool.query('INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)', [user_id, user_email, user_provider]);
-    await pool.query('INSERT INTO MyPage (user_id, user_nickname, user_subscription, cate_no, situ_no) VALUES (?, ?, ?, ?, ?)', [user_id, user_nickname, user_subscription, null, null]);
-    await pool.query('INSERT INTO Subscription (user_id, user_email, cate_no, situ_no) VALUES (?, ?, ?, ?)', [user_id, user_email, null, null]);
-    await pool.query('INSERT INTO Refrigerator (refrigerator_name, refrigerator_type, user_id) VALUES (?, ?, ?)', ['냉장고', 1, user_id]);
-    await pool.query('INSERT INTO Refrigerator (refrigerator_name, refrigerator_type, user_id) VALUES (?, ?, ?)', ['냉동고', 2, user_id]);
+    // 2. 트랜잭션 시작
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // 3. 회원 정보 삽입
+    await connection.query(
+      "INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)",
+      [user_id, user_email, "provider"] // Assuming 'provider' is a placeholder, replace it with actual provider if needed
+    );
+    await connection.query(
+      "INSERT INTO MyPage (user_id, user_nickname, user_subscription, cate_no, situ_no) VALUES (?, ?, ?, ?, ?)",
+      [user_id, user_nickname, user_subscription, null, null]
+    );
+
+    // 4. Subscription 정보 삽입
+    for (const prefer of user_prefer) {
+      const { cate_no, situ_no } = prefer;
+      await connection.query(
+        "INSERT INTO Subscription (user_id, user_email, cate_no, situ_no) VALUES (?, ?, ?, ?)",
+        [user_id, user_email, cate_no, situ_no]
+      );
+    }
+
+    // 5. Refrigerator 정보 삽입
+    await connection.query(
+      "INSERT INTO Refrigerator (refrigerator_name, refrigerator_type, user_id) VALUES (?, ?, ?)",
+      ["냉장고", 1, user_id]
+    );
+    await connection.query(
+      "INSERT INTO Refrigerator (refrigerator_name, refrigerator_type, user_id) VALUES (?, ?, ?)",
+      ["냉동고", 2, user_id]
+    );
+
+    // 6. 트랜잭션 커밋
+    await connection.commit();
 
     res.status(201).json({ message: "회원 가입이 완료되었습니다." });
   } catch (err) {
     console.error("Error registering user: ", err);
+
+    // 7. 트랜잭션 롤백
+    if (connection) await connection.rollback();
+
     res
       .status(500)
       .json({ message: "회원 가입에 실패했습니다. 다시 시도해주세요." });
+  } finally {
+    if (connection) connection.release();
   }
 });
 

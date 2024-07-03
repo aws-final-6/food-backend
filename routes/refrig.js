@@ -1,9 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const qs = require("qs");
-const fs = require("fs");
-const path = require("path");
-const csv = require("csv-parser");
 
 const { pool } = require("../scripts/connectMySQL");
 const { getRefrigeratorData } = require("../utils/refrigUtils"); // 유틸리티 함수 임포트
@@ -17,6 +13,7 @@ router.post("/getRefrig", async (req, res) => {
   const { user_id } = req.body;
   // 1. user_id 체크
   if (!user_id) {
+    console.log("Backend REFRIG_01: Bad Request, ", user_id);
     return res.status(400).json({ message: "잘못된 유저 정보입니다." });
   }
 
@@ -26,6 +23,7 @@ router.post("/getRefrig", async (req, res) => {
 
     // 3. 결과가 없는 경우 처리
     if (result.length === 0) {
+      console.log("Backend REFRIG_01: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
@@ -33,7 +31,7 @@ router.post("/getRefrig", async (req, res) => {
 
     return res.status(200).json(result);
   } catch (error) {
-    console.error(error);
+    console.error("Backend REFRIG_01: ", err);
     return res.status(500).json({
       message: "냉장고 데이터를 불러오지 못했습니다. 다시 시도해주세요.",
     });
@@ -46,6 +44,7 @@ router.post("/addIngredient", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id || !Array.isArray(refrigerators) || refrigerators.length === 0) {
+    console.log("Backend REFRIG_02: Bad Request, ", user_id);
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -61,6 +60,7 @@ router.post("/addIngredient", async (req, res) => {
       const { refrigerator_id, ingredients } = refrigerator;
 
       if (!refrigerator_id || !Array.isArray(ingredients)) {
+        console.log("Backend REFRIG_02: Bad Request, ", user_id);
         return res
           .status(400)
           .json({ message: "잘못된 냉장고 ID 혹은 재료 정보입니다." });
@@ -71,6 +71,7 @@ router.post("/addIngredient", async (req, res) => {
           ingredient;
 
         if (!refrigerator_ing_name || !expired_date || !enter_date || !color) {
+          console.log("Backend REFRIG_02: Bad Request, ", user_id);
           return res.status(400).json({ message: "잘못된 재료 정보입니다." });
         }
 
@@ -95,6 +96,7 @@ router.post("/addIngredient", async (req, res) => {
 
     // 6. 결과가 없는 경우 처리
     if (result.length === 0) {
+      console.log("Backend REFRIG_02: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
@@ -109,6 +111,7 @@ router.post("/addIngredient", async (req, res) => {
     // 7. 트랜잭션 롤백
     if (connection) await connection.rollback();
 
+    console.error("Backend REFRIG_02: ", err);
     res
       .status(500)
       .json({ message: "재료 저장에 실패했습니다. 다시 시도해주세요." });
@@ -127,6 +130,7 @@ router.post("/delIngredient", async (req, res) => {
     !Array.isArray(refrigerator_ing_ids) ||
     refrigerator_ing_ids.length === 0
   ) {
+    console.log("Backend REFRIG_03: Bad Request, ", user_id);
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -145,6 +149,7 @@ router.post("/delIngredient", async (req, res) => {
 
     if (deleteResult.affectedRows === 0) {
       await connection.rollback();
+      console.log("Backend REFRIG_03: Not Found, ", user_id);
       return res.status(404).json({ message: "해당 재료를 찾을 수 없습니다." });
     }
 
@@ -156,6 +161,7 @@ router.post("/delIngredient", async (req, res) => {
 
     // 6. 결과가 없는 경우 처리
     if (result.length === 0) {
+      console.log("Backend REFRIG_03: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
@@ -170,6 +176,7 @@ router.post("/delIngredient", async (req, res) => {
     // 7. 트랜잭션 롤백
     if (connection) await connection.rollback();
 
+    console.error("Backend REFRIG_03: ", err);
     res
       .status(500)
       .json({ message: "재료 삭제에 실패했습니다. 다시 시도해주세요." });
@@ -184,6 +191,7 @@ router.post("/updateRefrig", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id || !refrigerator_id || !new_name || !new_type) {
+    console.log("Backend REFRIG_04: Bad Request, ", user_id);
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -195,6 +203,7 @@ router.post("/updateRefrig", async (req, res) => {
     );
 
     if (updateResult.affectedRows === 0) {
+      console.log("Backend REFRIG_04: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "해당 냉장고를 찾을 수 없습니다." });
@@ -205,13 +214,14 @@ router.post("/updateRefrig", async (req, res) => {
 
     // 4. 결과가 없는 경우 처리
     if (result.length === 0) {
+      console.log("Backend REFRIG_04: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
     }
     return res.status(200).json(result);
   } catch (err) {
-    console.error(err);
+    console.error("Backend REFRIG_04: ", err);
     res
       .status(500)
       .json({ message: "냉장고 업데이트에 실패했습니다. 다시 시도해주세요." });
@@ -224,6 +234,7 @@ router.post("/addRefrig", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id || !refrigerator_name || !refrigerator_type) {
+    console.log("Backend REFRIG_05: Bad Request, ", user_id);
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -235,6 +246,7 @@ router.post("/addRefrig", async (req, res) => {
     );
 
     if (existingFridges[0].count >= 10) {
+      console.log("Backend REFRIG_05: Bad Request, ", user_id);
       return res
         .status(400)
         .json({ message: "냉장고 칸은 최대 10칸까지 추가할 수 있습니다." });
@@ -247,6 +259,7 @@ router.post("/addRefrig", async (req, res) => {
     );
 
     if (addResult.affectedRows === 0) {
+      console.error("Backend REFRIG_05: ", err);
       return res
         .status(500)
         .json({ message: "냉장고 칸 추가에 실패했습니다. 다시 시도해주세요." });
@@ -257,6 +270,7 @@ router.post("/addRefrig", async (req, res) => {
 
     // 5. 결과가 없는 경우 처리
     if (result.length === 0) {
+      console.log("Backend REFRIG_05: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
@@ -264,7 +278,7 @@ router.post("/addRefrig", async (req, res) => {
 
     return res.status(200).json(result);
   } catch (err) {
-    console.error(err);
+    console.error("Backend REFRIG_05: ", err);
     res
       .status(500)
       .json({ message: "냉장고 칸 추가에 실패했습니다. 다시 시도해주세요." });
@@ -277,6 +291,7 @@ router.post("/delRefrig", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id || !refrigerator_id) {
+    console.log("Backend REFRIG_06: Bad Request, ", user_id);
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -295,6 +310,7 @@ router.post("/delRefrig", async (req, res) => {
 
     if (existingFridges[0].count <= 2) {
       await connection.rollback();
+      console.log("Backend REFRIG_06: Bad Request, ", user_id);
       return res
         .status(400)
         .json({ message: "냉장고 칸은 최소 2칸을 유지해야 합니다." });
@@ -313,6 +329,7 @@ router.post("/delRefrig", async (req, res) => {
 
     if (deleteResult.affectedRows === 0) {
       await connection.rollback();
+      console.log("Backend REFRIG_06: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "해당 냉장고 칸을 찾을 수 없습니다." });
@@ -326,6 +343,7 @@ router.post("/delRefrig", async (req, res) => {
 
     // 7. 결과가 없는 경우 처리
     if (result.length === 0) {
+      console.log("Backend REFRIG_06: Not Found, ", user_id);
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
@@ -340,6 +358,7 @@ router.post("/delRefrig", async (req, res) => {
     // 8. 트랜잭션 롤백
     if (connection) await connection.rollback();
 
+    console.error("Backend REFRIG_06: ", err);
     res
       .status(500)
       .json({ message: "냉장고 칸 삭제에 실패했습니다. 다시 시도해주세요." });

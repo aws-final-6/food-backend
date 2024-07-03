@@ -15,6 +15,7 @@ router.post("/getFilterList", async (req, res) => {
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
+    console.log("Backend FILTER_01: Unauthorized, ", user_id);
     return res.status(401).json({ message: "유효하지 않은 세션입니다." });
   }
 
@@ -30,7 +31,7 @@ router.post("/getFilterList", async (req, res) => {
 
     return res.status(200).json({ filter_list });
   } catch (err) {
-    console.error("Error getting filter list: ", err);
+    console.error("Backend FILTER_01: ", err);
     res.status(500).json({
       message: "검색 필터 목록을 불러오기에 실패했습니다. 다시 시도해주세요.",
     });
@@ -44,11 +45,13 @@ router.post("/updateFilterList", async (req, res) => {
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
+    console.log("Backend FILTER_02: Unauthorized, ", user_id);
     return res.status(401).json({ message: "유효하지 않은 세션입니다." });
   }
 
   // 1. 입력 데이터 체크
   if (!user_id || !Array.isArray(filter_list) || filter_list.length === 0) {
+    console.log("Backend FILTER_02: Bad Request, ", user_id);
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -69,6 +72,7 @@ router.post("/updateFilterList", async (req, res) => {
 
     // 3. 입력된 재료 중 저장되어 있지 않은 재료가 있는 경우 예외 처리
     if (notFoundIngredients.length > 0) {
+      console.log("Backend FILTER_02: Not Found, ", notFoundIngredients);
       return res.status(404).json({
         message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
           ", "
@@ -93,7 +97,7 @@ router.post("/updateFilterList", async (req, res) => {
       .status(200)
       .json({ message: "제외 필터가 성공적으로 저장되었습니다." });
   } catch (err) {
-    console.error("Error saving filter list: ", err);
+    console.error("Backend FILTER_02: ", err);
     res.status(500).json({
       message: "제외 필터 저장에 실패했습니다. 다시 시도해주세요.",
     });
@@ -106,6 +110,7 @@ router.post("/searchIngredient", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!Array.isArray(filter_list) || filter_list.length === 0) {
+    console.log("Backend FILTER_03: Bad Request, ", filter_list);
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -126,6 +131,7 @@ router.post("/searchIngredient", async (req, res) => {
 
     // 3. 입력된 재료 중 저장되어 있지 않은 재료가 있는 경우 예외 처리
     if (notFoundIngredients.length > 0) {
+      console.log("Backend FILTER_03: Not Found, ", notFoundIngredients);
       return res.status(404).json({
         message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
           ", "
@@ -139,7 +145,7 @@ router.post("/searchIngredient", async (req, res) => {
       ingredients,
     });
   } catch (err) {
-    console.error("Error searching ingredients: ", err);
+    console.error("Backend FILTER_03: ", err);
     res.status(500).json({
       message: "재료 검색에 실패했습니다. 다시 시도해주세요.",
     });

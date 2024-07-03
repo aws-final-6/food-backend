@@ -14,21 +14,22 @@ router.use(express.json());
 // BaseUrl : /recipe
 
 // RECIPE_01 : 최신순 20개 가져오기
-router.get("/getRecentList", async(req, res)=>{
+router.get("/getRecentList", async (req, res) => {
   try {
     const [recentRecipes] = await pool.query(
-      'SELECT * FROM Recipe ORDER BY recipe_no DESC LIMIT 20'
+      "SELECT * FROM Recipe ORDER BY recipe_no DESC LIMIT 20"
     );
 
     // 결과를 클라이언트에게 응답으로 보내기
     res.json({ recipes: recentRecipes });
   } catch (err) {
-    console.error(err);
+    console.error("Backend RECIPE_01: ", err);
     res.status(500).json({
-      message: "최신 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
+      message:
+        "최신 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
     });
   }
-})
+});
 
 // RECIPE_02 : 현재 월 기준 제철농산물 레시피 가져오기
 router.get("/getSeasonalList", async (req, res) => {
@@ -38,14 +39,14 @@ router.get("/getSeasonalList", async (req, res) => {
 
     // 2. 현재 월에 해당하는 제철 농산물 이름 배열로 받아오기
     const [findSeasonalFoodName] = await pool.query(
-      'SELECT seasonal_name, seasonal_image FROM Seasonal WHERE seasonal_month = ?',
+      "SELECT seasonal_name, seasonal_image FROM Seasonal WHERE seasonal_month = ?",
       [currentMonth]
     );
 
     // 3. 결과를 클라이언트에게 응답으로 보내기
     res.json({ seasonal_list: findSeasonalFoodName });
   } catch (err) {
-    console.error(err);
+    console.error("Backend RECIPE_02: ", err);
     res.status(500).json({
       message:
         "제철 농산물 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
@@ -58,19 +59,23 @@ router.post("/getPreferList", async (req, res) => {
   const { user_id } = req.body;
   try {
     // 1. User 테이블에서 user_id로 cate_no와 situ_no 값 가져오기
-    const [getUserPrefer] = await pool.query('SELECT cate_no, situ_no FROM MyPage WHERE user_id = ?', [user_id]);
+    const [getUserPrefer] = await pool.query(
+      "SELECT cate_no, situ_no FROM MyPage WHERE user_id = ?",
+      [user_id]
+    );
 
     if (
       getUserPrefer.length === 0 ||
       getUserPrefer[0].cate_no === null ||
       getUserPrefer[0].situ_no === null
     ) {
+      console.log("Backend BOOKMK_03: No Content, ", user_id);
       return res.status(204).json({ message: "선호도 정보가 없습니다." });
     }
 
     // 2. 둘 다 만족할 때
     const [queryRes] = await pool.query(
-      'SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ?',
+      "SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ?",
       [getUserPrefer[0].cate_no, getUserPrefer[0].situ_no]
     );
 
@@ -85,10 +90,10 @@ router.post("/getPreferList", async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.log(err)
+    console.error("Backend RECIPE_03: ", err);
     return res.status(500).json({
       message:
-        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요."
+        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
     });
   }
 });
@@ -100,7 +105,7 @@ router.post("/getCateList", async (req, res) => {
   try {
     // 1. 만족하는 레시피 찾기
     const [queryRes] = await pool.query(
-      'SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ?',
+      "SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ?",
       [cate_no]
     );
 
@@ -115,10 +120,10 @@ router.post("/getCateList", async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.log(err)
+    console.error("Backend RECIPE_04: ", err);
     return res.status(500).json({
       message:
-        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요."
+        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
     });
   }
 });
@@ -126,11 +131,11 @@ router.post("/getCateList", async (req, res) => {
 // RECIPE_05 : 선호 situ만 만족하는 레시피 리스트 가져오기
 router.post("/getSituList", async (req, res) => {
   const { situ_no } = req.body;
-  
+
   try {
     // 1. 만족하는 레시피 찾기
     const [queryRes] = await pool.query(
-      'SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ?',
+      "SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ?",
       [situ_no]
     );
 
@@ -145,10 +150,10 @@ router.post("/getSituList", async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.log(err)
+    console.error("Backend RECIPE_05: ", err);
     return res.status(500).json({
       message:
-        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요."
+        "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
     });
   }
 });
@@ -232,7 +237,7 @@ router.get("/getRecipe/:id", async (req, res) => {
     // 3-1. 만약 모든 데이터를 찾았는데 없으면 404 반환
     stream.on("end", () => {
       if (!found) {
-        console.log("Recipe not found for ID:", recipe_no);
+        console.log("Backend RECIPE_06: Not Found, ", recipe_no);
         res.status(404).json({
           message: "잘못된 레시피 정보입니다.",
         });
@@ -240,13 +245,13 @@ router.get("/getRecipe/:id", async (req, res) => {
     });
 
     stream.on("error", (err) => {
-      console.error("Stream error:", err);
+      console.error("Backend RECIPE_06: ", err);
       res.status(500).json({
         message: "레시피를 불러오는데에 실패했습니다. 다시 시도해주세요.",
       });
     });
   } catch (err) {
-    console.error("Catch error:", err);
+    console.error("Backend RECIPE_06: ", err);
     res.status(500).json({
       message: "레시피를 불러오는데에 실패했습니다. 다시 시도해주세요.",
     });
@@ -273,7 +278,7 @@ router.post("/getShop", async (req, res) => {
 
     res.status(200).json(response.data);
   } catch (err) {
-    console.log(err);
+    console.error("Backend RECIPE_07: ", err);
     res.status(500).json({
       message: "네이버 쇼핑 검색에 실패했습니다. 다시 시도해주세요.",
     });
