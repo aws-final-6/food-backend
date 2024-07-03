@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const { pool } = require("../scripts/connectMySQL");
-const { validateSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
+const { validateSession } = require("../utils/sessionUtils");
+const { errLog } = require("../utils/logUtils");
 
 router.use(express.json());
 
@@ -15,6 +16,7 @@ router.post("/getBookmark", async (req, res) => {
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
+    errLog("BOOKMK_01", 401, "Unauthorized", { user_id: user_id });
     return res
       .status(401)
       .json({ message: "user_id와 access_token이 일치하지 않습니다." });
@@ -22,6 +24,7 @@ router.post("/getBookmark", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id) {
+    errLog("BOOKMK_01", 400, "Bad Request", { user_id: user_id });
     return res.status(400).json({ message: "잘못된 유저 정보입니다." });
   }
 
@@ -37,7 +40,10 @@ router.post("/getBookmark", async (req, res) => {
 
     return res.status(200).json({ user_bookmark });
   } catch (err) {
-    console.error("Backend BOOKMK_01: ", err);
+    errLog("BOOKMK_01", 500, "Internal Server Error", {
+      user_id: user_id,
+      error: err.message,
+    });
     res.status(500).json({
       message: "즐겨찾기 가져오기에 실패했습니다. 다시 시도해주세요.",
     });
@@ -51,7 +57,7 @@ router.post("/getBookmarkList", async (req, res) => {
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
-    console.log("Backend BOOKMK_02: Unauthorized, ", user_id);
+    errLog("BOOKMK_02", 401, "Unauthorized", { user_id: user_id });
     return res
       .status(401)
       .json({ message: "user_id와 access_token이 일치하지 않습니다." });
@@ -59,7 +65,7 @@ router.post("/getBookmarkList", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id) {
-    console.log("Backend BOOKMK_02: Bad Request, ", user_id);
+    errLog("BOOKMK_02", 400, "Bad Request", { user_id: user_id });
     return res.status(400).json({ message: "잘못된 유저 정보입니다." });
   }
 
@@ -78,7 +84,10 @@ router.post("/getBookmarkList", async (req, res) => {
 
     return res.status(200).json({ user_bookmark });
   } catch (err) {
-    console.error("Backend BOOKMK_02: ", err);
+    errLog("BOOKMK_02", 500, "Internal Server Error", {
+      user_id: user_id,
+      error: err.message,
+    });
     res.status(500).json({
       message: "즐겨찾기 가져오기에 실패했습니다. 다시 시도해주세요.",
     });
@@ -92,7 +101,7 @@ router.post("/removeBookmark", async (req, res) => {
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
-    console.log("Backend BOOKMK_03: Unauthorized, ", user_id);
+    errLog("BOOKMK_03", 401, "Unauthorized", { user_id: user_id });
     return res
       .status(401)
       .json({ message: "user_id와 access_token이 일치하지 않습니다." });
@@ -100,7 +109,10 @@ router.post("/removeBookmark", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id || !recipe_id) {
-    console.log("Backend BOOKMK_03: Bad Request, ", user_id);
+    errLog("BOOKMK_03", 400, "Bad Request", {
+      user_id: user_id,
+      recipe_id: recipe_id,
+    });
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -115,7 +127,11 @@ router.post("/removeBookmark", async (req, res) => {
       .status(200)
       .json({ message: "북마크가 성공적으로 삭제되었습니다." });
   } catch (err) {
-    console.error("Backend BOOKMK_03: ", err);
+    errLog("BOOKMK_03", 500, "Internal Server Error", {
+      user_id: user_id,
+      recipe_id: recipe_id,
+      error: err.message,
+    });
     res.status(500).json({
       message: "북마크 삭제에 실패했습니다. 다시 시도해주세요.",
     });
@@ -129,7 +145,7 @@ router.post("/updateBookmark", async (req, res) => {
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
-    console.log("Backend BOOKMK_03: Unauthorized, ", user_id);
+    errLog("BOOKMK_04", 401, "Unauthorized", { user_id: user_id });
     return res
       .status(401)
       .json({ message: "user_id와 access_token이 일치하지 않습니다." });
@@ -137,7 +153,10 @@ router.post("/updateBookmark", async (req, res) => {
 
   // 1. 입력 데이터 체크
   if (!user_id || !recipe_id) {
-    console.log("Backend BOOKMK_03: Bad Request, ", user_id);
+    errLog("BOOKMK_04", 400, "Bad Request", {
+      user_id: user_id,
+      recipe_id: recipe_id,
+    });
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
@@ -153,13 +172,20 @@ router.post("/updateBookmark", async (req, res) => {
       .json({ message: "북마크가 성공적으로 추가되었습니다." });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      console.error("Backend BOOKMK_04: ", err);
+      errLog("BOOKMK_04", 409, "Bad Request", {
+        user_id: user_id,
+        recipe_id: recipe_id,
+      });
       return res
         .status(409)
         .json({ message: "이미 북마크에 추가된 레시피입니다." });
     }
 
-    console.error("Backend BOOKMK_04: ", err);
+    errLog("BOOKMK_04", 500, "Internal Server Error", {
+      user_id: user_id,
+      recipe_id: recipe_id,
+      error: err.message,
+    });
     res.status(500).json({
       message: "북마크 추가에 실패했습니다. 다시 시도해주세요.",
     });
