@@ -56,10 +56,11 @@ router.post("/checkToken", async (req, res) => {
 
     // 1. switch-case문으로 user_provider값에 따라 코드 실행
     switch (user_provider) {
+      // 1-1. kakao
       case "kakao":
         const kakaoAuthURL = `https://kapi.kakao.com/v1/user/access_token_info`;
-
         try {
+          // 1-1-1. 유효할 경우 200
           const response = await axios.get(kakaoAuthURL, {
             headers: {
               Authorization: `Bearer ${access_token}`,
@@ -67,8 +68,8 @@ router.post("/checkToken", async (req, res) => {
           });
           res.status(200).json({ message: "유효한 액세스 토큰입니다." });
         } catch (err) {
+          // 1-1-2. 유효하지 않은 경우 419, Session Table에서 user_id, access_token 삭제
           if (err.response && err.response.status === 401) {
-            // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
             errLog("AUTH_01", 419, "Token Expired", { user_id: user_id });
             res
@@ -85,11 +86,11 @@ router.post("/checkToken", async (req, res) => {
           }
         }
         break;
-
+      // 1-2. naver
       case "naver":
         const naverAuthURL = `https://openapi.naver.com/v1/nid/me`;
-
         try {
+          // 1-2-1. 유효할 경우 200
           const response = await axios.get(naverAuthURL, {
             headers: {
               Authorization: `Bearer ${access_token}`,
@@ -97,8 +98,8 @@ router.post("/checkToken", async (req, res) => {
           });
           res.status(200).json({ message: "유효한 액세스 토큰입니다." });
         } catch (err) {
+          // 1-2-2. 유효하지 않은 경우 419, Session Table에서 user_id, access_token 삭제
           if (err.response && err.response.status === 401) {
-            // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
             errLog("AUTH_01", 419, "Token Expired", { user_id: user_id });
             res
@@ -115,11 +116,11 @@ router.post("/checkToken", async (req, res) => {
           }
         }
         break;
-
+      // 1-3. google
       case "google":
         const googleAuthURL = `https://oauth2.googleapis.com/tokeninfo`;
-
         try {
+          // 1-3-1. 유효할 경우 200
           const response = await axios.get(googleAuthURL, {
             headers: {
               Authorization: `Bearer ${access_token}`,
@@ -127,8 +128,8 @@ router.post("/checkToken", async (req, res) => {
           });
           res.status(200).json({ message: "유효한 액세스 토큰입니다." });
         } catch (err) {
+          // 1-3-2. 유효하지 않은 경우 419, Session Table에서 user_id, access_token 삭제
           if (err.response && err.response.status === 401) {
-            // 토큰이 유효하지 않으면 Session테이블에서 해당 user_id 삭제
             await deleteSession(user_id);
             errLog("AUTH_01", 419, "Token Expired", { user_id: user_id });
             res
@@ -145,7 +146,6 @@ router.post("/checkToken", async (req, res) => {
           }
         }
         break;
-
       default:
         errLog("AUTH_01", 400, "Bad Request", {
           user_id: user_id,
@@ -169,29 +169,43 @@ router.post("/checkToken", async (req, res) => {
 router.post("/requestToken", function (req, res) {
   const { user_provider } = req.body;
 
+  // 0. 유효한 user_provider 목록
+  const validProviders = ["kakao", "naver", "google"];
+
+  // 1. user_provider가 유효하지 않은 경우 예외 처리
+  if (!validProviders.includes(user_provider)) {
+    errLog("AUTH_02", 400, "Bad Request", { user_provider: user_provider });
+    return res
+      .status(400)
+      .json({ message: "유효하지 않은 프로바이더 입니다." });
+  }
+
   try {
+    // 2. user_provider값에 따른 switch-case 처리
     switch (user_provider) {
-      // kakao OAuth 인증 요청
+      // 2-1. kakao
       case "kakao":
         const kakaoAuthURL = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${kakaoReq.client_id}&redirect_uri=${kakaoReq.redirect_uri}&scope=${kakaoReq.scope}`;
         res.status(200).send(kakaoAuthURL);
         break;
-      // naver OAuth 인증 요청
+      // 2-2. naver
       case "naver":
         const naverAuthURL = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${naverReq.client_id}&redirect_uri=${naverReq.redirect_uri}&state=${naverReq.state}`;
         res.status(200).send(naverAuthURL);
         break;
-      // googla OAuth 인증 요청
+      // 2-3. google
       case "google":
         const googleAuthURL = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${googleReq.client_id}&redirect_uri=${googleReq.redirect_uri}&scope=${googleReq.scope}`;
         res.status(200).send(googleAuthURL);
         break;
+      // 2-4. default - 500 err
       default:
-        //provider 없을 경우 400
-        errLog("AUTH_02", 400, "Bad Request", { user_provider: user_provider });
-        return res
-          .status(400)
-          .json({ message: "유효하지 않은 프로바이더 입니다." });
+        errLog("AUTH_02", 500, "Internal Server Error", {
+          user_provider: user_provider,
+        });
+        res.status(500).json({
+          message: "토큰 발급 요청에 실패했습니다. 다시 시도해주세요.",
+        });
     }
   } catch (err) {
     errLog("AUTH_02", 500, "Internal Server Error", { error: err.message });
@@ -201,14 +215,14 @@ router.post("/requestToken", function (req, res) {
   }
 });
 
-// AUTH_03 : 토큰재발급 @@@@@@@@@@@@@@@@@@@@@@@ 0701 의견교류 필요 @@@@@@@@@@@@@@@@@@@@@@
-// => user_id를 받..긴하는거같은데 API테스트 아직 안해봐서 잘모르겠음. 급한거먼저 넘길랭
-// 그리고 이외에도 refresh_token 어디서 받을지도 회의 필요
+// AUTH_03 : 토큰재발급
 router.post("/refreshToken", async (req, res) => {
   const { user_provider, refresh_token } = req.body;
 
+  // 1. user_provider에 따라 switch - case
   try {
     switch (user_provider) {
+      // 1-1. kakao
       case "kakao":
         const kakaoURL = "https://kauth.kakao.com/oauth/token";
         const tokenData = {
