@@ -6,7 +6,7 @@ function errLog(apiId, statusCode, statusMessage, additionalInfo = {}) {
     ...additionalInfo, // 추가정보
   };
 
-  console.log(JSON.stringify(logMessage));
+  console.log("Backend: ", JSON.stringify(logMessage));
 }
 
 module.exports = errLog;
