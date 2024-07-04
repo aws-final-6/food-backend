@@ -5,8 +5,8 @@ const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
 const moment = require("moment-timezone");
+const pool = require("../scripts/connector");
 
-const { pool } = require("../scripts/connectMySQL");
 require("dotenv").config();
 
 router.use(express.json());
@@ -16,9 +16,7 @@ router.use(express.json());
 // RECIPE_01 : 최신순 20개 가져오기
 router.get("/getRecentList", async (req, res) => {
   try {
-    const [recentRecipes] = await pool.query(
-      "SELECT * FROM Recipe ORDER BY recipe_no DESC LIMIT 20"
-    );
+    const [recentRecipes] = await pool.query("SELECT * FROM Recipe LIMIT 20");
 
     // 결과를 클라이언트에게 응답으로 보내기
     res.json({ recipes: recentRecipes });
