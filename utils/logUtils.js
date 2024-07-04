@@ -9,7 +9,7 @@ function errLog(apiId, statusCode, statusMessage, additionalInfo = {}) {
   console.log("Backend: ", JSON.stringify(logMessage));
 }
 
-module.exports = errLog;
+module.exports = { errLog };
 
 // import
 // const { errLog } = require("../utils/logUtils");
