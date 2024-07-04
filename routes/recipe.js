@@ -7,6 +7,7 @@ const csv = require("csv-parser");
 const moment = require("moment-timezone");
 
 const { pool } = require("../scripts/connectMySQL");
+const { errLog } = require("../utils/logUtils");
 require("dotenv").config();
 
 router.use(express.json());
@@ -16,14 +17,17 @@ router.use(express.json());
 // RECIPE_01 : 최신순 20개 가져오기
 router.get("/getRecentList", async (req, res) => {
   try {
+    // 1. recipe_id 기준 20개 SELECT
     const [recentRecipes] = await pool.query(
-      "SELECT * FROM Recipe ORDER BY recipe_no DESC LIMIT 20"
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe ORDER BY recipe_id DESC LIMIT 20"
     );
 
-    // 결과를 클라이언트에게 응답으로 보내기
+    // 2. 클라이언트 전달
     res.json({ recipes: recentRecipes });
   } catch (err) {
-    console.error("Backend RECIPE_01: ", err);
+    errLog("RECIPE_01", 500, "Internal Server Error", {
+      error: err.message,
+    });
     res.status(500).json({
       message:
         "최신 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
@@ -46,7 +50,9 @@ router.get("/getSeasonalList", async (req, res) => {
     // 3. 결과를 클라이언트에게 응답으로 보내기
     res.json({ seasonal_list: findSeasonalFoodName });
   } catch (err) {
-    console.error("Backend RECIPE_02: ", err);
+    errLog("RECIPE_02", 500, "Internal Server Error", {
+      error: err.message,
+    });
     res.status(500).json({
       message:
         "제철 농산물 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
@@ -64,25 +70,29 @@ router.post("/getPreferList", async (req, res) => {
       [user_id]
     );
 
+    // 1-1. 선호도 정보 없거나 못가져온 경우
     if (
       getUserPrefer.length === 0 ||
       getUserPrefer[0].cate_no === null ||
       getUserPrefer[0].situ_no === null
     ) {
-      console.log("Backend BOOKMK_03: No Content, ", user_id);
+      errLog("RECIPE_03", 204, "No Content", {
+        user_id: user_id,
+        error: err.message,
+      });
       return res.status(204).json({ message: "선호도 정보가 없습니다." });
     }
 
-    // 2. 둘 다 만족할 때
+    // 2. 두 선호도 모두 만족하는 레시피 목록 SELECT
     const [queryRes] = await pool.query(
-      "SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ?",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ?",
       [getUserPrefer[0].cate_no, getUserPrefer[0].situ_no]
     );
 
     // 3. 결과를 클라이언트로 전달
     const result = {
       prefer_list: queryRes.map((recipe) => ({
-        recipe_no: recipe.recipe_no,
+        recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
       })),
@@ -90,7 +100,9 @@ router.post("/getPreferList", async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error("Backend RECIPE_03: ", err);
+    errLog("RECIPE_03", 500, "Internal Server Error", {
+      error: err.message,
+    });
     return res.status(500).json({
       message:
         "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
@@ -105,14 +117,14 @@ router.post("/getCateList", async (req, res) => {
   try {
     // 1. 만족하는 레시피 찾기
     const [queryRes] = await pool.query(
-      "SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ?",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ?",
       [cate_no]
     );
 
     // 2. 결과를 클라이언트로 전달
     const result = {
       cate_list: queryRes.map((recipe) => ({
-        recipe_no: recipe.recipe_no,
+        recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
       })),
@@ -120,7 +132,9 @@ router.post("/getCateList", async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error("Backend RECIPE_04: ", err);
+    errLog("RECIPE_04", 500, "Internal Server Error", {
+      error: err.message,
+    });
     return res.status(500).json({
       message:
         "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
@@ -135,14 +149,14 @@ router.post("/getSituList", async (req, res) => {
   try {
     // 1. 만족하는 레시피 찾기
     const [queryRes] = await pool.query(
-      "SELECT recipe_no, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ?",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ?",
       [situ_no]
     );
 
     // 2. 결과를 클라이언트로 전달
     const result = {
       situ_list: queryRes.map((recipe) => ({
-        recipe_no: recipe.recipe_no,
+        recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
       })),
@@ -150,7 +164,9 @@ router.post("/getSituList", async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error("Backend RECIPE_05: ", err);
+    errLog("RECIPE_05", 500, "Internal Server Error", {
+      error: err.message,
+    });
     return res.status(500).json({
       message:
         "추천 레시피 목록을 불러오는데에 실패했습니다. 다시 시도해주세요.",
@@ -160,23 +176,32 @@ router.post("/getSituList", async (req, res) => {
 
 // RECIPE_06 : 특정 레시피 body 가져오기
 router.get("/getRecipe/:id", async (req, res) => {
+  // 0-1. 문자열을 JSON 배열로 변환하는 함수
   const convertToJSONArray = (str) => {
     return str.replace(/\(/g, "[").replace(/\)/g, "]").replace(/'/g, '"');
   };
+
+  // 0-2. 재료 배열을 변환하는 함수
   const transformIngredients = (ingredients) => {
     return ingredients.map(([ingredient, amount]) => ({ ingredient, amount }));
   };
+
+  // 0-3. 레시피 배열을 변환하는 함수
   const transformRecipe = (recipes) => {
     return recipes.map(([step, image]) => ({ step, image }));
   };
+
   try {
     // 1. 파라미터로 받은 id값 정수형태로 변환
-    const recipe_no = parseInt(req.params.id, 10);
-    console.log("Parsed recipe ID:", recipe_no);
+    const recipe_id = parseInt(req.params.id, 10);
+    if (isNaN(recipe_id)) {
+      errLog("RECIPE_06", 400, "Bad Request");
+      return res.status(400).json({ message: "잘못된 레시피 ID입니다." });
+    }
 
     // 2. CSV 파일 스트림을 생성하고 파싱
     const stream = fs
-      // 2-1. 파일 경로 지정
+      // 2-1. 파일 경로 지정 *** 경로지정 필요 ***
       .createReadStream(path.join(__dirname, "../data", "recipe_samples.csv"))
       .pipe(
         csv({
@@ -202,10 +227,10 @@ router.get("/getRecipe/:id", async (req, res) => {
     let found = false;
 
     stream.on("data", (data) => {
-      if (parseInt(data.recipe_id, 10) === recipe_no) {
+      if (parseInt(data.recipe_id, 10) === recipe_id) {
         found = true;
 
-        // 데이터 변환
+        // 4. 데이터 변환
         const transformedData = {
           recipe_id: data.recipe_id,
           name: data.name,
@@ -234,10 +259,13 @@ router.get("/getRecipe/:id", async (req, res) => {
       }
     });
 
-    // 3-1. 만약 모든 데이터를 찾았는데 없으면 404 반환
+    // 5-1. 만약 없으면 404 반환
     stream.on("end", () => {
       if (!found) {
-        console.log("Backend RECIPE_06: Not Found, ", recipe_no);
+        errLog("RECIPE_06", 404, "Not Found", {
+          recipe_id: recipe_id,
+          error: err.message,
+        });
         res.status(404).json({
           message: "잘못된 레시피 정보입니다.",
         });
@@ -245,13 +273,19 @@ router.get("/getRecipe/:id", async (req, res) => {
     });
 
     stream.on("error", (err) => {
-      console.error("Backend RECIPE_06: ", err);
+      errLog("RECIPE_06", 500, "Internal Server Error", {
+        recipe_id: recipe_id,
+        error: err.message,
+      });
       res.status(500).json({
         message: "레시피를 불러오는데에 실패했습니다. 다시 시도해주세요.",
       });
     });
   } catch (err) {
-    console.error("Backend RECIPE_06: ", err);
+    errLog("RECIPE_06", 500, "Internal Server Error", {
+      recipe_id: recipe_id,
+      error: err.message,
+    });
     res.status(500).json({
       message: "레시피를 불러오는데에 실패했습니다. 다시 시도해주세요.",
     });
@@ -278,7 +312,10 @@ router.post("/getShop", async (req, res) => {
 
     res.status(200).json(response.data);
   } catch (err) {
-    console.error("Backend RECIPE_07: ", err);
+    errLog("RECIPE_07", 500, "Internal Server Error", {
+      ingredient_name: ingredient_name,
+      error: err.message,
+    });
     res.status(500).json({
       message: "네이버 쇼핑 검색에 실패했습니다. 다시 시도해주세요.",
     });
