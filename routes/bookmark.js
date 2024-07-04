@@ -78,7 +78,7 @@ router.post("/getBookmarkList", async (req, res) => {
 
     // 3. 북마크 목록 반환
     const user_bookmark = rows.map((row) => ({
-      recipe_no: row.recipe_id.toString(),
+      recipe_id: row.recipe_id.toString(),
       recipe_title: row.recipe_title,
     }));
 
