@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { pool } = require("../scripts/connectMySQL");
+const pool = require("../scripts/connector");
 const { errLog } = require("../utils/logUtils");
 
 router.use(express.json());
@@ -11,7 +11,7 @@ router.use(express.json());
 // MYPAGE_01 : 마이페이지 불러오기
 router.post("/getProfile", async (req, res) => {
   // 0. user_id 를 받아옴
-  const { user_id } = req.body;
+  const { user_id, access_token } = req.body;
 
   try {
     // 1. User 테이블에서 user_id를 키값으로 유저 검색 - user_email
@@ -63,6 +63,7 @@ router.post("/getProfile", async (req, res) => {
 router.post("/updateProfile", async (req, res) => {
   const { user_id, user_nickname, user_subscription, user_prefer, user_email } =
     req.body;
+  console.log(user_subscription);
 
   // 최종적인 회원 정보 업데이트 던지기
   const connection = await pool.getConnection();
@@ -80,8 +81,14 @@ router.post("/updateProfile", async (req, res) => {
 
     // 1. MyPage 테이블 업데이트
     await connection.query(
-      "UPDATE MyPage SET user_nickname = ?, user_subscription = ?, user_prefer = ? WHERE user_id = ?",
-      [user_nickname, user_subscription, JSON.stringify(user_prefer), user_id]
+      "UPDATE MyPage SET user_nickname = ?, user_subscription = ?, cate_no = ?, situ_no = ? WHERE user_id = ?",
+      [
+        user_nickname,
+        user_subscription == "true",
+        user_prefer[0].cate_no,
+        user_prefer[0].situ_no,
+        user_id,
+      ]
     );
 
     // 2. Subscription 테이블 업데이트

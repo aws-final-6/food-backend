@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { pool } = require("../scripts/connectMySQL");
+const pool = require("../scripts/connector");
 const { validateSession } = require("../utils/sessionUtils");
 const { errLog } = require("../utils/logUtils");
 

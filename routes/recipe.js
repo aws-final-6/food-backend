@@ -6,7 +6,7 @@ const path = require("path");
 const csv = require("csv-parser");
 const moment = require("moment-timezone");
 
-const { pool } = require("../scripts/connectMySQL");
+const pool = require("../scripts/connector");
 const { errLog } = require("../utils/logUtils");
 require("dotenv").config();
 
@@ -63,10 +63,11 @@ router.get("/getSeasonalList", async (req, res) => {
 // RECIPE_03 : 선호도 태그 둘 다 만족하는 레시피 가져오기
 router.post("/getPreferList", async (req, res) => {
   const { user_id } = req.body;
+  console.log("RECIPE_03 /getPreferList, user_id", user_id);
   try {
     // 1. User 테이블에서 user_id로 cate_no와 situ_no 값 가져오기
     const [getUserPrefer] = await pool.query(
-      "SELECT cate_no, situ_no FROM MyPage WHERE user_id = ?",
+      "SELECT cate_no, situ_no FROM MyPage WHERE user_id = ? ",
       [user_id]
     );
 
@@ -85,7 +86,7 @@ router.post("/getPreferList", async (req, res) => {
 
     // 2. 두 선호도 모두 만족하는 레시피 목록 SELECT
     const [queryRes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ?",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ? LIMIT 20",
       [getUserPrefer[0].cate_no, getUserPrefer[0].situ_no]
     );
 
@@ -121,9 +122,15 @@ router.post("/getCateList", async (req, res) => {
       [cate_no]
     );
 
-    // 2. 결과를 클라이언트로 전달
+    // 2. 결과를 무작위로 섞기
+    const shuffledRecipes = queryRes.sort(() => 0.5 - Math.random());
+
+    // 3. 최대 20개의 레시피 선택
+    const selectedRecipes = shuffledRecipes.slice(0, 20);
+
+    // 4. 결과를 클라이언트로 전달
     const result = {
-      cate_list: queryRes.map((recipe) => ({
+      cate_list: selectedRecipes.map((recipe) => ({
         recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
@@ -153,9 +160,15 @@ router.post("/getSituList", async (req, res) => {
       [situ_no]
     );
 
-    // 2. 결과를 클라이언트로 전달
+    // 2. 결과를 무작위로 섞기
+    const shuffledRecipes = queryRes.sort(() => 0.5 - Math.random());
+
+    // 3. 최대 20개의 레시피 선택
+    const selectedRecipes = shuffledRecipes.slice(0, 20);
+
+    // 4. 결과를 클라이언트로 전달
     const result = {
-      situ_list: queryRes.map((recipe) => ({
+      situ_list: selectedRecipes.map((recipe) => ({
         recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
@@ -293,12 +306,12 @@ router.get("/getRecipe/:id", async (req, res) => {
 });
 
 // RECIPE_07
-router.post("/getShop", async (req, res) => {
+router.post("/getNaverShop", async (req, res) => {
   // 0. 검색할 재료 이름 받아오기
   const { ingredient_name } = req.body;
   const shopUrl = `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(
     ingredient_name
-  )}&sort=sim`;
+  )}&sort=asc&filter=naverpay&display=20`;
 
   // 1. 요청
   try {
@@ -313,6 +326,47 @@ router.post("/getShop", async (req, res) => {
     res.status(200).json(response.data);
   } catch (err) {
     errLog("RECIPE_07", 500, "Internal Server Error", {
+      ingredient_name: ingredient_name,
+      error: err.message,
+    });
+    res.status(500).json({
+      message: "네이버 쇼핑 검색에 실패했습니다. 다시 시도해주세요.",
+    });
+  }
+});
+
+// RECIPE_08
+router.post("/getShop", async (req, res) => {
+  // 0. 검색할 재료 이름 받아오기
+  const { ingredient_name } = req.body;
+  const shopUrl = `https://shopping.naver.com/v1/search/base-products?_nc_=1720018800000&q=${encodeURIComponent(
+    ingredient_name
+  )}&verticals[]=MARKET&verticalDistrictNos[]=1260100840117,1250100839984,1310000004044,1340000001122,1280000000233,1440000004936,1330000000918,1350000001056,1240000000571,1360000001182,1450000003025,1230000000141,1470000003604,1430000002226,1210000000000&sort=POPULARITY&start=1&display=20&filterSoldOut=true`;
+
+  // 1. 요청
+  try {
+    const response = await axios.get(shopUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+    const result = response.data.items;
+    const extractedData = result.map((item) => ({
+      _id: item._id,
+      name: item.name,
+      channel_name: item.channel.channelName,
+      dispSalePrice: item.dispSalePrice,
+      discountedPrice: item.benefitsView.dispDiscountedSalePrice,
+      discountedRatio: item.benefitsView.dispDiscountedRatio,
+      image_url: item.productImages[0].url,
+      reviewCount: item.reviewAmount.totalReviewCount,
+      reviewScore: item.reviewAmount.averageReviewScore,
+    }));
+
+    res.status(200).json(extractedData);
+  } catch (err) {
+    errLog("RECIPE_08", 500, "Internal Server Error", {
       ingredient_name: ingredient_name,
       error: err.message,
     });

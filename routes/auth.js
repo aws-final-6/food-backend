@@ -3,7 +3,7 @@ const router = express.Router();
 const axios = require("axios");
 const qs = require("qs");
 
-const { pool } = require("../scripts/connectMySQL");
+const pool = require("../scripts/connector");
 const { validateSession, deleteSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
 const { errLog } = require("../utils/logUtils");
 
@@ -754,8 +754,25 @@ router.post("/signup", async (req, res) => {
     user_subscription,
     user_prefer,
   } = req.body;
+  console.log(
+    "user_id",
+    user_id,
+    "user_provider",
+    user_provider,
+    "access_token",
+    access_token,
+    "user_email",
+    user_email,
+    "user_nickname",
+    user_nickname,
+    "user_subscription",
+    user_subscription,
+    "user_prefer",
+    user_prefer
+  );
 
   let connection;
+  const subscription = Boolean(user_subscription);
 
   try {
     // 1. 이메일 중복 체크
@@ -778,26 +795,29 @@ router.post("/signup", async (req, res) => {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    // 3-1. Session 테이블에 user_id, access_token 저장
-    await connection.query(
-      "INSERT INTO Session (user_id, access_token) VALUES (?,?)",
-      [user_id, access_token]
-    );
-    // 3-2. User 테이블에 user_id, user_email, user_provider 저장
+    // 3-1. User 테이블에 user_id, user_email, user_provider 저장
     await connection.query(
       "INSERT INTO User (user_id, user_email, user_provider) VALUES (?, ?, ?)",
       [user_id, user_email, user_provider]
     );
+
+    // 3-2. Session 테이블에 user_id, access_token 저장
+    await connection.query(
+      "INSERT INTO Session (user_id, access_token) VALUES (?,?)",
+      [user_id, access_token]
+    );
+
     // 3-3. MyPage 테이블에 user_id, user_nickname, user_subscription, cate_no, situ_no 저장
     for (const prefer of user_prefer) {
       const { cate_no, situ_no } = prefer;
       await connection.query(
         "INSERT INTO MyPage (user_id, user_nickname,  user_subscription, cate_no, situ_no) VALUES (?, ?, ?, ?, ?)",
-        [user_id, user_nickname, user_subscription, cate_no, situ_no]
+        [user_id, user_nickname, subscription, cate_no, situ_no]
       );
     }
     // 3-4. user_subscription이 true일 때 Subscription 테이블에 user_id, user_nickname, user_email, cate_no, situ_no 저장
-    if (user_subscription == true) {
+    if (subscription == true) {
+      console.log("user subscribed");
       for (const prefer of user_prefer) {
         const { cate_no, situ_no } = prefer;
         await connection.query(

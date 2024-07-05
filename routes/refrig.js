@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { pool } = require("../scripts/connectMySQL");
+const pool = require("../scripts/connector");
 const { getRefrigeratorData } = require("../utils/refrigUtils"); // 냉장고 정보 가져오기 util
 const { errLog } = require("../utils/logUtils");
 

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { pool } = require("../scripts/connectMySQL");
+const pool = require("../scripts/connector");
 const { errLog } = require("../utils/logUtils");
 
 router.use(express.json());
@@ -11,7 +11,7 @@ router.use(express.json());
 // SEARCH_01 : 제목 검색 결과 리스트 가져오기
 router.post("/getTitleSearchList", async (req, res) => {
   const { keyword, type } = req.body;
-
+  console.log("SEARCH_01 ", "keyword: ", keyword, "type:", type);
   // 0-1. keyword 없을 때
   if (!keyword) {
     errLog("SEARCH_01", 400, "Bad Request", {
@@ -30,7 +30,7 @@ router.post("/getTitleSearchList", async (req, res) => {
 
   try {
     // 1. 제목으로 검색 (대소문자 구분 없이 포함하는 결과)
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE recipe_title LIKE ?",
       [`%${keyword}%`]
     );
@@ -94,7 +94,7 @@ router.post("/getIngredientSearchList", async (req, res) => {
 
   try {
     // 1. 재료명으로 재료 ID를 검색
-    const [ingredients] = await pool.execute(
+    const [ingredients] = await pool.query(
       "SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?",
       [`%${keyword}%`]
     );
