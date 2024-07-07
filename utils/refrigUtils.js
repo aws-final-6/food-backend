@@ -1,4 +1,4 @@
-const { pool } = require("../scripts/connectMySQL");
+const pool = require("../scripts/connector");
 
 // user_id를 이용해 냉장고 정보를 불러오기
 async function getRefrigeratorData(user_id) {
