@@ -93,30 +93,36 @@ router.post("/getIngredientSearchList", async (req, res) => {
   }
 
   try {
-    // 1. 재료명으로 재료 ID를 검색
-    const [ingredients] = await pool.query(
-      "SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?",
+    // // 1. 재료명으로 재료 ID를 검색
+    // const [ingredients] = await pool.query(
+    //   "SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?",
+    //   [`%${keyword}%`]
+    // );
+
+    // console.log("SEARCH_02 ingredients", ingredients);
+
+    // // 2-1. 해당 재료가 없을 경우 예외 처리
+    // if (ingredients.length === 0) {
+    //   errLog("SEARCH_02", 404, "Not Found", {
+    //     ingredients: ingredients,
+    //   });
+    //   return res.status(404).json({ message: "일치하는 재료가 없습니다." });
+    // }
+
+    // // 2-2. 재료 ID 리스트 추출
+    // const ingredientIds = ingredients.map(
+    //   (ingredient) => ingredient.ingredient_id
+    // );
+
+    // console.log("SEARCH_02 ingredientIds", ingredientIds);
+
+    // 3. 재료 ID 리스트로 레시피 ID 검색 및 레시피 정보 가져오기
+    const [recipes] = await pool.query(
+      `SELECT i.recipe_id, r.recipe_title, r.recipe_thumbnail FROM IngredientSearch i JOIN Recipe r ON i.recipe_id = r.recipe_id WHERE i.ingredient_id IN (SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?)`,
       [`%${keyword}%`]
     );
 
-    // 2-1. 해당 재료가 없을 경우 예외 처리
-    if (ingredients.length === 0) {
-      errLog("SEARCH_02", 404, "Not Found", {
-        ingredients: ingredients,
-      });
-      return res.status(404).json({ message: "일치하는 재료가 없습니다." });
-    }
-
-    // 2-2. 재료 ID 리스트 추출
-    const ingredientIds = ingredients.map(
-      (ingredient) => ingredient.ingredient_id
-    );
-
-    // 3. 재료 ID 리스트로 레시피 ID 검색 및 레시피 정보 가져오기
-    const [recipes] = await pool.execute(
-      `SELECT DISTINCT r.recipe_id, r.recipe_title, r.recipe_thumbnail FROM IngredientSearch iS JOIN Recipe r ON iS.recipe_id = r.recipe_id WHERE iS.ingredient_id IN (?)`,
-      [ingredientIds]
-    );
+    console.log("SEARCH_02 recipes", recipes);
 
     // 4. 최종 레시피 리스트 반환
     if (recipes.length === 0) {
@@ -203,7 +209,7 @@ router.post("/getFilteredSearchList", async (req, res) => {
     if (keyword_filter.length > 0) {
       const placeholders = keyword_filter.map(() => "?").join(", ");
       const [excludeIngredients] = await pool.execute(
-        `SELECT ingredient_id FROM Ingredient WHERE ingredient_name IN (${placeholders})`,
+        `SELECT ingredient_id FROM Ingredient WHERE ingredient_name IN ?`,
         keyword_filter
       );
       excludeIngredientIds = excludeIngredients.map(
