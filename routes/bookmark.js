@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 const { validateSession } = require("../utils/sessionUtils");
 const { errLog } = require("../utils/logUtils");
 
@@ -30,7 +30,7 @@ router.post("/getBookmark", async (req, res) => {
 
   try {
     // 2. 북마크 목록 가져오기
-    const [rows] = await pool.query(
+    const [rows] = await readPool.query(
       "SELECT recipe_id FROM Bookmark WHERE user_id = ?",
       [user_id]
     );
@@ -71,7 +71,7 @@ router.post("/getBookmarkList", async (req, res) => {
 
   try {
     // 2. 북마크된 레시피 목록 가져오기
-    const [rows] = await pool.query(
+    const [rows] = await readPool.query(
       `SELECT b.recipe_id, r.recipe_title FROM Bookmark b JOIN Recipe r ON b.recipe_id = r.recipe_id WHERE b.user_id = ?`,
       [user_id]
     );
@@ -118,7 +118,7 @@ router.post("/removeBookmark", async (req, res) => {
 
   try {
     // 2. 북마크 삭제
-    const [result] = await pool.query(
+    const [result] = await writePool.query(
       "DELETE FROM Bookmark WHERE user_id = ? AND recipe_id = ?",
       [user_id, recipe_id]
     );
@@ -162,7 +162,7 @@ router.post("/updateBookmark", async (req, res) => {
 
   try {
     // 2. 북마크 추가
-    await pool.query(
+    await writePool.query(
       "INSERT INTO Bookmark (user_id, recipe_id) VALUES (?, ?)",
       [user_id, recipe_id]
     );
