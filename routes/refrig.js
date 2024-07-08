@@ -67,49 +67,33 @@ router.post("/addIngredient", async (req, res) => {
   let connection;
 
   try {
-    // 2. 트랜잭션 시작
-    connection = await writePool.getConnection();
-    await connection.beginTransaction();
+  // 2. 트랜잭션 시작
+  connection = await writePool.getConnection();
+  await connection.beginTransaction();
 
-    // 3. 데이터 저장
-    for (const refrigerator of refrigerators) {
-      const { refrigerator_id, ingredients } = refrigerator;
+  // 3. 데이터 저장
+    for (const ingredient of refrigerators) {
+      const { refrigerator_ing_name, expired_date, enter_date, color, refrigerator_id } = ingredient;
 
-      if (!refrigerator_id || !Array.isArray(ingredients)) {
+      if (!refrigerator_id || !refrigerator_ing_name || !expired_date || !enter_date || !color) {
         errLog("REFRIG_02", 400, "Bad Request", {
           user_id: user_id,
-          refrigerator: refrigerator,
-          message: "잘못된 냉장고 ID 혹은 재료 정보입니다."
+          ingredient: ingredient,
+          message: "잘못된 재료 정보입니다."
         });
-        return res
-          .status(400)
-          .json({ message: "잘못된 냉장고 ID 혹은 재료 정보입니다." });
+        return res.status(400).json({ message: "잘못된 재료 정보입니다." });
       }
 
-      for (const ingredient of ingredients) {
-        const { refrigerator_ing_name, expired_date, enter_date, color } =
-          ingredient;
-
-        if (!refrigerator_ing_name || !expired_date || !enter_date || !color) {
-          errLog("REFRIG_02", 400, "Bad Request", {
-            user_id: user_id,
-            ingredient: ingredient,
-            message: "잘못된 재료 정보입니다." 
-          });
-          return res.status(400).json({ message: "잘못된 재료 정보입니다." });
-        }
-
-        await connection.execute(
-          "INSERT INTO RefrigeratorIngredients (refrigerator_id, refrigerator_ing_name, expired_date, enter_date, color) VALUES (?, ?, ?, ?, ?)",
-          [
-            refrigerator_id,
-            refrigerator_ing_name,
-            expired_date,
-            enter_date,
-            color,
-          ]
-        );
-      }
+      await connection.execute(
+        "INSERT INTO RefrigeratorIngredients (refrigerator_id, refrigerator_ing_name, expired_date, enter_date, color) VALUES (?, ?, ?, ?, ?)",
+        [
+          refrigerator_id,
+          refrigerator_ing_name,
+          expired_date,
+          enter_date,
+          color,
+        ]
+      );
     }
 
     // 4. 트랜잭션 커밋
