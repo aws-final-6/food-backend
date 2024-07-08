@@ -6,7 +6,7 @@ const path = require("path");
 const csv = require("csv-parser");
 const moment = require("moment-timezone");
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 const { errLog } = require("../utils/logUtils");
 require("dotenv").config();
 
@@ -18,7 +18,7 @@ router.use(express.json());
 router.get("/getRecentList", async (req, res) => {
   try {
     // 1. recipe_id 기준 20개 SELECT
-    const [recentRecipes] = await pool.query(
+    const [recentRecipes] = await readPool.query(
       "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe ORDER BY recipe_id DESC LIMIT 20"
     );
 
@@ -43,7 +43,7 @@ router.get("/getSeasonalList", async (req, res) => {
     const currentMonth = moment().tz("Asia/Seoul").month() + 1;
 
     // 2. 현재 월에 해당하는 제철 농산물 이름 배열로 받아오기
-    const [findSeasonalFoodName] = await pool.query(
+    const [findSeasonalFoodName] = await readPool.query(
       "SELECT seasonal_name, seasonal_image FROM Seasonal WHERE seasonal_month = ? ORDER BY RAND()",
       [currentMonth]
     );
@@ -68,7 +68,7 @@ router.post("/getPreferList", async (req, res) => {
 
   try {
     // 1. User 테이블에서 user_id로 cate_no와 situ_no 값 가져오기
-    const [getUserPrefer] = await pool.query(
+    const [getUserPrefer] = await readPool.query(
       "SELECT cate_no, situ_no FROM MyPage WHERE user_id = ? ",
       [user_id]
     );
@@ -87,7 +87,7 @@ router.post("/getPreferList", async (req, res) => {
     }
 
     // 2. 두 선호도 모두 만족하는 레시피 목록 SELECT
-    const [queryRes] = await pool.query(
+    const [queryRes] = await readPool.query(
       "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ? ORDER BY RAND() LIMIT 20",
       [getUserPrefer[0].cate_no, getUserPrefer[0].situ_no]
     );
@@ -128,7 +128,7 @@ router.post("/getCateList", async (req, res) => {
 
   try {
     // 1. 만족하는 레시피 찾기 (무작위로 최대 20개)
-    const [queryRes] = await pool.query(
+    const [queryRes] = await readPool.query(
       "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? ORDER BY RAND() LIMIT 20",
       [cate_no]
     );
@@ -179,7 +179,7 @@ router.post("/getSituList", async (req, res) => {
 
   try {
     // 1. 만족하는 레시피 찾기
-    const [queryRes] = await pool.query(
+    const [queryRes] = await readPool.query(
       "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ? ORDER BY RAND() LIMIT 20",
       [situ_no]
     );
