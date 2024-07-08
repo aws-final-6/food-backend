@@ -3,7 +3,7 @@ const router = express.Router();
 const axios = require("axios");
 const qs = require("qs");
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 const { validateSession, deleteSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
 const { errLog } = require("../utils/logUtils");
 
@@ -283,7 +283,7 @@ router.post("/refreshToken", async (req, res) => {
           const user_id = String(userInfo.id);
 
           // 1-1-4. Session 테이블에 갱신된 토큰 정보를 업데이트
-          await pool.query(
+          await writePool.query(
             "UPDATE Session SET access_token = ? WHERE user_id = ?",
             [access_token, user_id]
           );
@@ -337,7 +337,7 @@ router.post("/refreshToken", async (req, res) => {
           const user_id = String(userInfo.id);
 
           // 1-2-4. Session 테이블에 갱신된 토큰 정보를 업데이트
-          await pool.query(
+          await writePool.query(
             "UPDATE Session SET access_token = ? WHERE user_id = ?",
             [access_token, user_id]
           );
@@ -392,7 +392,7 @@ router.post("/refreshToken", async (req, res) => {
           const user_id = String(userInfo.id);
 
           // 1-3-5. Session 테이블에 갱신된 토큰 정보를 업데이트
-          await pool.query(
+          await writePool.query(
             "UPDATE Session SET access_token = ? WHERE user_id = ?",
             [access_token, user_id]
           );
@@ -461,7 +461,7 @@ router.get("/kakao/redirect", async (req, res) => {
     const user_email = userInfo.kakao_account.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User collection에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+    const [rows] = await readPool.query("SELECT * FROM User WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -473,7 +473,7 @@ router.get("/kakao/redirect", async (req, res) => {
       );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query(
+      await writePool.query(
         "UPDATE Session SET access_token = ? WHERE user_id = ?",
         [access_token, user_id]
       );
@@ -533,7 +533,7 @@ router.get("/naver/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+    const [rows] = await readPool.query("SELECT * FROM User WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -546,7 +546,7 @@ router.get("/naver/redirect", async (req, res) => {
         );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query(
+      await writePool.query(
         "UPDATE Session SET access_token = ? WHERE user_id = ?",
         [access_token, user_id]
       );
@@ -608,7 +608,7 @@ router.get("/google/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+    const [rows] = await readPool.query("SELECT * FROM User WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -621,7 +621,7 @@ router.get("/google/redirect", async (req, res) => {
         );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query(
+      await writePool.query(
         "UPDATE Session SET access_token = ? WHERE user_id = ?",
         [access_token, user_id]
       );
@@ -773,7 +773,7 @@ router.post("/signup", async (req, res) => {
 
   try {
     // 1. 이메일 중복 체크
-    const [existingUsers] = await pool.query(
+    const [existingUsers] = await readPool.query(
       "SELECT * FROM User WHERE user_email = ?",
       [user_email]
     );
@@ -789,7 +789,7 @@ router.post("/signup", async (req, res) => {
     }
 
     // 2. 트랜잭션 시작
-    connection = await pool.getConnection();
+    connection = await writePool.getConnection();
     await connection.beginTransaction();
 
     // 3-1. User 테이블에 user_id, user_email, user_provider 저장
