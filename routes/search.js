@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 const { errLog } = require("../utils/logUtils");
 
 router.use(express.json());
@@ -31,6 +31,8 @@ router.post("/getTitleSearchList", async (req, res) => {
   }
 
   try {
+    const connection = await readPool.getConnection();
+
     // 1. 제목으로 검색 (대소문자 구분 없이 포함하는 결과)
     let query = `
       SELECT recipe_id, recipe_title, recipe_thumbnail 
@@ -45,7 +47,8 @@ router.post("/getTitleSearchList", async (req, res) => {
       params.push(10);
     }
 
-    const [recipes] = await pool.query(query, params);
+    const [recipes] = await connection.query(query, params);
+    connection.release();
 
     // 2-1. 검색 결과가 없을 때 예외 처리
     if (recipes.length === 0) {
@@ -101,6 +104,8 @@ router.post("/getIngredientSearchList", async (req, res) => {
   }
 
   try {
+    const connection = await readPool.getConnection();
+
     // 1. 재료명으로 재료 ID를 검색
     let query = `
       SELECT i.recipe_id, r.recipe_title, r.recipe_thumbnail 
@@ -116,7 +121,8 @@ router.post("/getIngredientSearchList", async (req, res) => {
       params.push(10);
     }
 
-    const [recipes] = await pool.query(query, params);
+    const [recipes] = await connection.query(query, params);
+    connection.release();
 
     // 4. 최종 레시피 리스트 반환
     if (recipes.length === 0) {
@@ -182,6 +188,8 @@ router.post("/getFilteredSearchList", async (req, res) => {
   }
 
   try {
+    const connection = await readPool.getConnection();
+
     // 1. 쿼리 구성
     let query = `
       SELECT DISTINCT r.recipe_id, r.recipe_title, r.recipe_thumbnail 
@@ -202,7 +210,8 @@ router.post("/getFilteredSearchList", async (req, res) => {
       query += ` LIMIT 10`;
     }
 
-    const [recipes] = await pool.execute(query, params);
+    const [recipes] = await connection.execute(query, params);
+    connection.release();
 
     // 2. 최종 레시피 리스트 반환
     if (recipes.length === 0) {
@@ -247,9 +256,11 @@ router.post("/getMultiSearchList", async (req, res) => {
   }
 
   try {
+    const connection = await readPool.getConnection();
+
     // 2. 재료명으로 재료 ID를 검색
     const placeholders = ing_search.map(() => "?").join(", ");
-    const [ingredients] = await pool.execute(
+    const [ingredients] = await connection.execute(
       `SELECT ingredient_id FROM Ingredient WHERE ingredient_name IN (${placeholders})`,
       ing_search
     );
@@ -270,7 +281,7 @@ router.post("/getMultiSearchList", async (req, res) => {
 
     // 3. 재료 ID 리스트로 레시피 ID 검색
     const recipePlaceholders = ingredientIds.map(() => "?").join(", ");
-    const [recipes] = await pool.execute(
+    const [recipes] = await connection.execute(
       `SELECT r.recipe_id, r.recipe_title, r.recipe_thumbnail 
       FROM Recipe r 
       JOIN (
@@ -282,6 +293,8 @@ router.post("/getMultiSearchList", async (req, res) => {
       ) matched_recipes ON r.recipe_id = matched_recipes.recipe_id`,
       [...ingredientIds, ingredientIds.length]
     );
+
+    connection.release();
 
     // 3-1. 검색 결과가 없을 때 예외 처리
     if (recipes.length === 0) {
