@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 const { getRefrigeratorData } = require("../utils/refrigUtils"); // 냉장고 정보 가져오기 util
 const { errLog } = require("../utils/logUtils");
 
@@ -68,7 +68,7 @@ router.post("/addIngredient", async (req, res) => {
 
   try {
     // 2. 트랜잭션 시작
-    connection = await pool.getConnection();
+    connection = await writePool.getConnection();
     await connection.beginTransaction();
 
     // 3. 데이터 저장
@@ -171,7 +171,7 @@ router.post("/delIngredient", async (req, res) => {
 
   try {
     // 2. 데이터베이스 연결 및 트랜잭션 시작
-    connection = await pool.getConnection();
+    connection = await writePool.getConnection();
     await connection.beginTransaction();
 
     // 3. 재료 삭제
@@ -245,7 +245,7 @@ router.post("/updateRefrig", async (req, res) => {
 
   try {
     // 2. 냉장고 업데이트
-    const [updateResult] = await pool.execute(
+    const [updateResult] = await writePool.execute(
       "UPDATE Refrigerator SET refrigerator_name = ?, refrigerator_type = ? WHERE refrigerator_id = ? AND user_id = ?",
       [new_name, new_type, refrigerator_id, user_id]
     );
@@ -306,7 +306,7 @@ router.post("/addRefrig", async (req, res) => {
 
   try {
     // 2. 유저의 냉장고 칸 수 체크
-    const [existingFridges] = await pool.query(
+    const [existingFridges] = await readPool.query(
       "SELECT COUNT(*) as count FROM Refrigerator WHERE user_id = ?",
       [user_id]
     );
@@ -322,7 +322,7 @@ router.post("/addRefrig", async (req, res) => {
     }
 
     // 3. 냉장고 칸 추가
-    const [addResult] = await pool.execute(
+    const [addResult] = await writePool.execute(
       "INSERT INTO Refrigerator (user_id, refrigerator_name, refrigerator_type) VALUES (?, ?, ?)",
       [user_id, refrigerator_name, refrigerator_type]
     );
@@ -378,21 +378,19 @@ router.post("/delRefrig", async (req, res) => {
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
-  let connection;
+  let writeConnection;
+  let readConnection;
 
   try {
-    // 2. 데이터베이스 연결
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    // 3. 유저의 냉장고 칸 수 체크
-    const [existingFridges] = await connection.query(
+    // 2. 유저의 냉장고 칸 수 체크
+    readConnection = await readPool.getConnection();
+    const [existingFridges] = await readConnection.query(
       "SELECT COUNT(*) as count FROM Refrigerator WHERE user_id = ?",
       [user_id]
     );
+    readConnection.release();
 
     if (existingFridges[0].count <= 2) {
-      await connection.rollback();
       errLog("REFRIG_06", 409, "Conflict", {
         user_id: user_id,
         message: "냉장고 칸은 최소 2칸을 유지해야 합니다."
@@ -402,19 +400,23 @@ router.post("/delRefrig", async (req, res) => {
         .json({ message: "냉장고 칸은 최소 2칸을 유지해야 합니다." });
     }
 
+    // 3. 데이터베이스 연결 및 트랜잭션 시작
+    writeConnection = await writePool.getConnection();
+    await writeConnection.beginTransaction();
+
     // 4. 해당 냉장고 칸과 그 안의 모든 재료 삭제
-    await connection.query(
+    await writeConnection.query(
       "DELETE FROM RefrigeratorIngredients WHERE refrigerator_id = ?",
       [refrigerator_id]
     );
 
-    const [deleteResult] = await connection.query(
+    const [deleteResult] = await writeConnection.query(
       "DELETE FROM Refrigerator WHERE refrigerator_id = ? AND user_id = ?",
       [refrigerator_id, user_id]
     );
 
     if (deleteResult.affectedRows === 0) {
-      await connection.rollback();
+      await writeConnection.rollback();
       errLog("REFRIG_06", 404, "Not Found", {
         user_id: user_id,
         refrigerator_id: refrigerator_id,
@@ -426,7 +428,7 @@ router.post("/delRefrig", async (req, res) => {
     }
 
     // 5. 트랜잭션 커밋
-    await connection.commit();
+    await writeConnection.commit();
 
     // 6. 유저의 모든 냉장고 정보 다시 가져오기
     const result = await getRefrigeratorData(user_id);
@@ -442,15 +444,13 @@ router.post("/delRefrig", async (req, res) => {
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
     }
 
-    connection.release();
+    writeConnection.release();
 
     errLog("REFRIG_06", 200, "OK");
     return res.status(200).json(result);
   } catch (err) {
-    console.error(err);
-
     // 8. 트랜잭션 롤백
-    if (connection) await connection.rollback();
+    if (writeConnection) await writeConnection.rollback();
 
     errLog("REFRIG_06", 500, "Internal Server Error", {
       user_id: user_id,
@@ -460,7 +460,8 @@ router.post("/delRefrig", async (req, res) => {
       .status(500)
       .json({ message: "냉장고 칸 삭제에 실패했습니다. 다시 시도해주세요." });
   } finally {
-    if (connection) connection.release();
+    if (writeConnection) writeConnection.release();
+    if (readConnection) readConnection.release();
   }
 });
 
