@@ -23,7 +23,8 @@ router.get("/getRecentList", async (req, res) => {
     );
 
     // 2. 클라이언트 전달
-    res.json({ recipes: recentRecipes });
+    errLog("RECIPE_01", 200, "OK");
+    res.status(200).json({ recipes: recentRecipes });
   } catch (err) {
     errLog("RECIPE_01", 500, "Internal Server Error", {
       error: err.message,
@@ -43,12 +44,13 @@ router.get("/getSeasonalList", async (req, res) => {
 
     // 2. 현재 월에 해당하는 제철 농산물 이름 배열로 받아오기
     const [findSeasonalFoodName] = await pool.query(
-      "SELECT seasonal_name, seasonal_image FROM Seasonal WHERE seasonal_month = ?",
+      "SELECT seasonal_name, seasonal_image FROM Seasonal WHERE seasonal_month = ? ORDER BY RAND()",
       [currentMonth]
     );
 
     // 3. 결과를 클라이언트에게 응답으로 보내기
-    res.json({ seasonal_list: findSeasonalFoodName });
+    errLog("RECIPE_02", 200, "OK");
+    res.status(200).json({ seasonal_list: findSeasonalFoodName });
   } catch (err) {
     errLog("RECIPE_02", 500, "Internal Server Error", {
       error: err.message,
@@ -63,7 +65,7 @@ router.get("/getSeasonalList", async (req, res) => {
 // RECIPE_03 : 선호도 태그 둘 다 만족하는 레시피 가져오기
 router.post("/getPreferList", async (req, res) => {
   const { user_id } = req.body;
-  console.log("RECIPE_03 /getPreferList, user_id", user_id);
+
   try {
     // 1. User 테이블에서 user_id로 cate_no와 situ_no 값 가져오기
     const [getUserPrefer] = await pool.query(
@@ -79,14 +81,14 @@ router.post("/getPreferList", async (req, res) => {
     ) {
       errLog("RECIPE_03", 204, "No Content", {
         user_id: user_id,
-        error: err.message,
+        message: "선호도 정보가 없습니다."
       });
       return res.status(204).json({ message: "선호도 정보가 없습니다." });
     }
 
     // 2. 두 선호도 모두 만족하는 레시피 목록 SELECT
     const [queryRes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ? LIMIT 20",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ? ORDER BY RAND() LIMIT 20",
       [getUserPrefer[0].cate_no, getUserPrefer[0].situ_no]
     );
 
@@ -98,8 +100,8 @@ router.post("/getPreferList", async (req, res) => {
         recipe_thumbnail: recipe.recipe_thumbnail,
       })),
     };
-
-    res.json(result);
+    errLog("RECIPE_03", 200, "OK");
+    res.status(200).json(result);
   } catch (err) {
     errLog("RECIPE_03", 500, "Internal Server Error", {
       error: err.message,
@@ -115,29 +117,42 @@ router.post("/getPreferList", async (req, res) => {
 router.post("/getCateList", async (req, res) => {
   const { cate_no } = req.body;
 
+  // 0. 입력 데이터 체크
+  if (!cate_no || typeof cate_no !== 'number') {
+    errLog("RECIPE_04", 400, "Bad Request", {
+      cate_no: cate_no,
+      message: "잘못된 입력 데이터입니다.",
+    });
+    return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
+  }
+
   try {
-    // 1. 만족하는 레시피 찾기
+    // 1. 만족하는 레시피 찾기 (무작위로 최대 20개)
     const [queryRes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ?",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? ORDER BY RAND() LIMIT 20",
       [cate_no]
     );
 
-    // 2. 결과를 무작위로 섞기
-    const shuffledRecipes = queryRes.sort(() => 0.5 - Math.random());
+    // 2. 결과가 없는 경우 예외 처리
+    if (queryRes.length === 0) {
+      errLog("RECIPE_04", 204, "No Content", {
+        cate_no: cate_no,
+        message: "해당 카테고리에 대한 레시피가 없습니다.",
+      });
+      return res.status(204).json({ message: "해당 카테고리에 대한 레시피가 없습니다." });
+    }
 
-    // 3. 최대 20개의 레시피 선택
-    const selectedRecipes = shuffledRecipes.slice(0, 20);
-
-    // 4. 결과를 클라이언트로 전달
+    // 3. 결과를 클라이언트로 전달
     const result = {
-      cate_list: selectedRecipes.map((recipe) => ({
+      cate_list: queryRes.map((recipe) => ({
         recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
       })),
     };
 
-    res.json(result);
+    errLog("RECIPE_04", 200, "OK");
+    res.status(200).json(result);
   } catch (err) {
     errLog("RECIPE_04", 500, "Internal Server Error", {
       error: err.message,
@@ -153,29 +168,42 @@ router.post("/getCateList", async (req, res) => {
 router.post("/getSituList", async (req, res) => {
   const { situ_no } = req.body;
 
+  // 0. 입력 데이터 체크
+  if (!situ_no || typeof situ_no !== 'number') {
+    errLog("RECIPE_05", 400, "Bad Request", {
+      situ_no: situ_no,
+      message: "잘못된 입력 데이터입니다.",
+    });
+    return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
+  }
+
   try {
     // 1. 만족하는 레시피 찾기
     const [queryRes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ?",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ? ORDER BY RAND() LIMIT 20",
       [situ_no]
     );
 
-    // 2. 결과를 무작위로 섞기
-    const shuffledRecipes = queryRes.sort(() => 0.5 - Math.random());
+    // 2. 결과가 없는 경우 예외 처리
+    if (queryRes.length === 0) {
+      errLog("RECIPE_05", 204, "No Content", {
+        situ_no: situ_no,
+        message: "해당 카테고리에 대한 레시피가 없습니다.",
+      });
+      return res.status(204).json({ message: "해당 카테고리에 대한 레시피가 없습니다." });
+    }
 
-    // 3. 최대 20개의 레시피 선택
-    const selectedRecipes = shuffledRecipes.slice(0, 20);
-
-    // 4. 결과를 클라이언트로 전달
+    // 3. 결과를 클라이언트로 전달
     const result = {
-      situ_list: selectedRecipes.map((recipe) => ({
+      situ_list: queryRes.map((recipe) => ({
         recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
       })),
     };
 
-    res.json(result);
+    errLog("RECIPE_05", 200, "OK");
+    res.status(200).json(result);
   } catch (err) {
     errLog("RECIPE_05", 500, "Internal Server Error", {
       error: err.message,
@@ -208,7 +236,10 @@ router.get("/getRecipe/:id", async (req, res) => {
     // 1. 파라미터로 받은 id값 정수형태로 변환
     const recipe_id = parseInt(req.params.id, 10);
     if (isNaN(recipe_id)) {
-      errLog("RECIPE_06", 400, "Bad Request");
+      errLog("RECIPE_06", 400, "Bad Request",{
+        recipe_id: recipe_id,
+        message: "잘못된 레시피 ID입니다."
+      });
       return res.status(400).json({ message: "잘못된 레시피 ID입니다." });
     }
 
@@ -266,7 +297,8 @@ router.get("/getRecipe/:id", async (req, res) => {
           ],
         };
 
-        res.json(transformedData);
+        errLog("RECIPE_06", 200, "OK");
+        res.status(200).json(transformedData);
 
         stream.destroy();
       }
@@ -277,7 +309,7 @@ router.get("/getRecipe/:id", async (req, res) => {
       if (!found) {
         errLog("RECIPE_06", 404, "Not Found", {
           recipe_id: recipe_id,
-          error: err.message,
+          message: "잘못된 레시피 정보입니다."
         });
         res.status(404).json({
           message: "잘못된 레시피 정보입니다.",
@@ -323,6 +355,7 @@ router.post("/getNaverShop", async (req, res) => {
       },
     });
 
+    errLog("RECIPE_07", 200, "OK");
     res.status(200).json(response.data);
   } catch (err) {
     errLog("RECIPE_07", 500, "Internal Server Error", {
@@ -364,6 +397,7 @@ router.post("/getShop", async (req, res) => {
       reviewScore: item.reviewAmount.averageReviewScore,
     }));
 
+    errLog("RECIPE_08", 200, "OK");
     res.status(200).json(extractedData);
   } catch (err) {
     errLog("RECIPE_08", 500, "Internal Server Error", {

@@ -28,24 +28,30 @@ async function getRefrigeratorData(user_id) {
     } = row;
     if (!result[refrigerator_id]) {
       result[refrigerator_id] = {
-        refrigerator_id,
-        refrigerator_name,
-        refrigerator_type,
+        refrig: {
+          refrigerator_id,
+          refrigerator_name,
+          refrigerator_type,
+        },
         ingredients: [],
       };
     }
     if (refrigerator_ing_id) {
       result[refrigerator_id].ingredients.push({
-        refrigerator_ing_id,
+        refrigerator_id,
         refrigerator_ing_name,
-        expired_date,
         enter_date,
+        expired_date,
+        refrigerator_ing_id,
         color,
       });
     }
   });
 
-  return Object.values(result);
+  return {
+    user_id,
+    refrigerators: Object.values(result)
+  };
 }
 
 module.exports = { getRefrigeratorData };

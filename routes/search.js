@@ -11,11 +11,12 @@ router.use(express.json());
 // SEARCH_01 : 제목 검색 결과 리스트 가져오기
 router.post("/getTitleSearchList", async (req, res) => {
   const { keyword, type } = req.body;
-  console.log("SEARCH_01 ", "keyword: ", keyword, "type:", type);
+
   // 0-1. keyword 없을 때
   if (!keyword) {
     errLog("SEARCH_01", 400, "Bad Request", {
       keyword: keyword,
+      message: "검색어를 입력해주세요."
     });
     return res.status(400).json({ message: "검색어를 입력해주세요." });
   }
@@ -24,42 +25,49 @@ router.post("/getTitleSearchList", async (req, res) => {
   if (!type || !["page", "navbar"].includes(type)) {
     errLog("SEARCH_01", 400, "Bad Request", {
       type: type,
+      message: "유효한 타입을 입력해주세요."
     });
     return res.status(400).json({ message: "유효한 타입을 입력해주세요." });
   }
 
   try {
     // 1. 제목으로 검색 (대소문자 구분 없이 포함하는 결과)
-    const [rows] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE recipe_title LIKE ?",
-      [`%${keyword}%`]
-    );
+    let query = `
+      SELECT recipe_id, recipe_title, recipe_thumbnail 
+      FROM Recipe 
+      WHERE recipe_title LIKE ?
+    `;
+    
+    const params = [`%${keyword}%`];
 
-    // 2-1. 검색 결과가 없을 때 예외 처리
-    if (rows.length === 0) {
-      errLog("SEARCH_01", 404, "Not Found", {
-        keyword: keyword,
-      });
-      return res
-        .status(404)
-        .json({ message: "제목이 일치하는 레시피가 없습니다." });
+    if (type === "navbar") {
+      query += `LIMIT ?`;
+      params.push(10);
     }
 
-    // 3. 최종 결과 형식으로 변환 (중복 제거는 MySQL 쿼리에서 자동 처리됨)
-    let search_list = rows.map((r) => ({
+    const [recipes] = await pool.query(query, params);
+
+    // 2-1. 검색 결과가 없을 때 예외 처리
+    if (recipes.length === 0) {
+      errLog("SEARCH_01", 404, "Not Found", {
+        keyword: keyword,
+        message: "제목이 일치하는 레시피가 없습니다."
+      });
+      return res.status(404).json({ message: "제목이 일치하는 레시피가 없습니다." });
+    }
+
+    // 3. 최종 결과 형식으로 변환
+    const search_list = recipes.map((r) => ({
       recipe_id: r.recipe_id,
       recipe_title: r.recipe_title,
       recipe_thumbnail: r.recipe_thumbnail,
     }));
 
-    // 4. type에 따라 반환할 결과 조정
-    if (type === "navbar") {
-      search_list = search_list.slice(0, 10);
-    }
+    res
+      .status(200)
+      .json({ search_list });
+    errLog("SEARCH_01", 200, "OK");
 
-    res.json({
-      search_list,
-    });
   } catch (err) {
     errLog("SEARCH_01", 500, "Internal Server Error", {
       error: err.message,
@@ -78,73 +86,59 @@ router.post("/getIngredientSearchList", async (req, res) => {
   if (!keyword) {
     errLog("SEARCH_02", 400, "Bad Request", {
       keyword: keyword,
+      message: "검색어를 입력해주세요."
     });
     return res.status(400).json({ message: "검색어를 입력해주세요." });
   }
 
-  // 0-2. type 값이 없거나 유효하지 않은 경우 예외 처리
+  /// 0-2. type 없거나 page / navbar가 아닐 때
   if (!type || !["page", "navbar"].includes(type)) {
     errLog("SEARCH_02", 400, "Bad Request", {
       type: type,
+      message: "유효한 타입을 입력해주세요."
     });
-    return res
-      .status(400)
-      .json({ message: "유효한 타입을 입력해주세요. (page 또는 navbar)" });
+    return res.status(400).json({ message: "유효한 타입을 입력해주세요." });
   }
 
   try {
-    // // 1. 재료명으로 재료 ID를 검색
-    // const [ingredients] = await pool.query(
-    //   "SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?",
-    //   [`%${keyword}%`]
-    // );
+    // 1. 재료명으로 재료 ID를 검색
+    let query = `
+      SELECT i.recipe_id, r.recipe_title, r.recipe_thumbnail 
+      FROM IngredientSearch i 
+      JOIN Recipe r ON i.recipe_id = r.recipe_id 
+      WHERE i.ingredient_id IN (SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?)
+    `;
 
-    // console.log("SEARCH_02 ingredients", ingredients);
+    const params = [`%${keyword}%`];
 
-    // // 2-1. 해당 재료가 없을 경우 예외 처리
-    // if (ingredients.length === 0) {
-    //   errLog("SEARCH_02", 404, "Not Found", {
-    //     ingredients: ingredients,
-    //   });
-    //   return res.status(404).json({ message: "일치하는 재료가 없습니다." });
-    // }
+    if (type === "navbar") {
+      query += `LIMIT ?`;
+      params.push(10);
+    }
 
-    // // 2-2. 재료 ID 리스트 추출
-    // const ingredientIds = ingredients.map(
-    //   (ingredient) => ingredient.ingredient_id
-    // );
-
-    // console.log("SEARCH_02 ingredientIds", ingredientIds);
-
-    // 3. 재료 ID 리스트로 레시피 ID 검색 및 레시피 정보 가져오기
-    const [recipes] = await pool.query(
-      `SELECT i.recipe_id, r.recipe_title, r.recipe_thumbnail FROM IngredientSearch i JOIN Recipe r ON i.recipe_id = r.recipe_id WHERE i.ingredient_id IN (SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?)`,
-      [`%${keyword}%`]
-    );
-
-    console.log("SEARCH_02 recipes", recipes);
+    const [recipes] = await pool.query(query, params);
 
     // 4. 최종 레시피 리스트 반환
     if (recipes.length === 0) {
       errLog("SEARCH_02", 404, "Not Found", {
         keyword: keyword,
+        message: "재료가 일치하는 레시피가 없습니다."
       });
-      return res.status(404).json({ message: "일치하는 레시피가 없습니다." });
+      return res.status(404).json({ message: "재료가 일치하는 레시피가 없습니다." });
     }
 
     // 5. 최종 결과 형식으로 변환
-    let search_list = recipes.map((r) => ({
+    const search_list = recipes.map((r) => ({
       recipe_id: r.recipe_id,
       recipe_title: r.recipe_title,
       recipe_thumbnail: r.recipe_thumbnail,
     }));
 
-    // type이 navbar인 경우 결과를 10개까지만 제한
-    if (type === "navbar") {
-      search_list = search_list.slice(0, 10);
-    }
+    res
+      .status(200)
+      .json({ search_list });
+    errLog("SEARCH_02", 200, "OK");
 
-    res.json({ search_list });
   } catch (err) {
     errLog("SEARCH_02", 500, "Internal Server Error", {
       error: err.message,
@@ -164,6 +158,7 @@ router.post("/getFilteredSearchList", async (req, res) => {
   if (!keyword) {
     errLog("SEARCH_03", 400, "Bad Request", {
       keyword: keyword,
+      message: "검색어를 입력해주세요."
     });
     return res.status(400).json({ message: "검색어를 입력해주세요." });
   }
@@ -172,91 +167,67 @@ router.post("/getFilteredSearchList", async (req, res) => {
   if (!type || !["page", "navbar"].includes(type)) {
     errLog("SEARCH_03", 400, "Bad Request", {
       type: type,
+      message: "유효한 타입을 입력해주세요."
     });
     return res.status(400).json({ message: "유효한 타입을 입력해주세요." });
   }
 
-  // 0-3. keyword_filter가 배열이지만 값이 없을 때 예외 처리
+  // 0-3. keyword_filter값이 없을 때 예외 처리
   if (!Array.isArray(keyword_filter) || keyword_filter.length === 0) {
     errLog("SEARCH_03", 400, "Bad Request", {
       keyword_filter: keyword_filter,
+      message: "제외 필터를 설정해주세요." 
     });
     return res.status(400).json({ message: "제외 필터를 설정해주세요." });
   }
 
   try {
-    // 1. 재료명으로 재료 ID를 검색
-    const [ingredients] = await pool.execute(
-      "SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?",
-      [`%${keyword}%`]
-    );
+    // 1. 쿼리 구성
+    let query = `
+      SELECT DISTINCT r.recipe_id, r.recipe_title, r.recipe_thumbnail 
+      FROM IngredientSearch i 
+      JOIN Recipe r ON i.recipe_id = r.recipe_id 
+      WHERE i.ingredient_id IN (SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?)
+      AND r.recipe_id NOT IN (
+        SELECT isub.recipe_id 
+        FROM IngredientSearch isub 
+        JOIN Ingredient ifil ON isub.ingredient_id = ifil.ingredient_id 
+        WHERE ifil.ingredient_name IN (${keyword_filter.map(() => "?").join(", ")})
+      )
+    `;
 
-    // 2-1. 해당 재료가 없을 경우 예외 처리
-    if (ingredients.length === 0) {
-      errLog("SEARCH_03", 404, "Not Found", {
-        keyword: keyword,
-      });
-      return res.status(404).json({ message: "일치하는 재료가 없습니다." });
+    const params = [`%${keyword}%`, ...keyword_filter];
+
+    if (type === "navbar") {
+      query += ` LIMIT 10`;
     }
 
-    // 2-2. 재료 ID 리스트 추출
-    const ingredientIds = ingredients.map(
-      (ingredient) => ingredient.ingredient_id
-    );
+    const [recipes] = await pool.execute(query, params);
 
-    // 3. 제외할 재료명을 가지고 재료 ID 검색
-    let excludeIngredientIds = [];
-    if (keyword_filter.length > 0) {
-      const placeholders = keyword_filter.map(() => "?").join(", ");
-      const [excludeIngredients] = await pool.execute(
-        `SELECT ingredient_id FROM Ingredient WHERE ingredient_name IN ?`,
-        keyword_filter
-      );
-      excludeIngredientIds = excludeIngredients.map(
-        (ingredient) => ingredient.ingredient_id
-      );
-    }
-
-    // 4. 재료 ID 리스트로 레시피 ID 검색 및 레시피 정보 가져오기
-    const [recipes] = await pool.execute(
-      `SELECT DISTINCT r.recipe_id, r.recipe_title, r.recipe_thumbnail FROM IngredientSearch iS JOIN Recipe r ON iS.recipe_id = r.recipe_id WHERE iS.ingredient_id IN (?) ${
-        excludeIngredientIds.length > 0
-          ? "AND iS.recipe_id NOT IN (SELECT recipe_id FROM IngredientSearch WHERE ingredient_id IN (?))"
-          : ""
-      }`,
-      excludeIngredientIds.length > 0
-        ? [ingredientIds, excludeIngredientIds]
-        : [ingredientIds]
-    );
-
-    // 5. 최종 레시피 리스트 반환
+    // 2. 최종 레시피 리스트 반환
     if (recipes.length === 0) {
       errLog("SEARCH_03", 404, "Not Found", {
         keyword: keyword,
+        message: "일치하는 레시피가 없습니다."
       });
       return res.status(404).json({ message: "일치하는 레시피가 없습니다." });
     }
 
-    // 6. 최종 결과 형식으로 변환
-    let search_list = recipes.map((r) => ({
+    // 3. 최종 결과 형식으로 변환
+    const search_list = recipes.map((r) => ({
       recipe_id: r.recipe_id,
       recipe_title: r.recipe_title,
       recipe_thumbnail: r.recipe_thumbnail,
     }));
 
-    // type이 navbar인 경우 결과를 10개까지만 제한
-    if (type === "navbar") {
-      search_list = search_list.slice(0, 10);
-    }
-
-    res.json({ search_list });
+    res.status(200).json({ search_list });
+    errLog("SEARCH_03", 200, "OK");
+    
   } catch (err) {
     errLog("SEARCH_03", 500, "Internal Server Error", {
       error: err.message,
     });
-    res
-      .status(500)
-      .json({ message: "레시피 검색에 실패했습니다. 다시 시도해주세요." });
+    res.status(500).json({ message: "레시피 검색에 실패했습니다. 다시 시도해주세요." });
   }
 });
 
@@ -268,6 +239,7 @@ router.post("/getMultiSearchList", async (req, res) => {
   if (!ing_search || !Array.isArray(ing_search) || ing_search.length === 0) {
     errLog("SEARCH_04", 400, "Bad Request", {
       ing_search: ing_search,
+      message: "검색할 재료 리스트를 입력해주세요."
     });
     return res
       .status(400)
@@ -286,6 +258,7 @@ router.post("/getMultiSearchList", async (req, res) => {
     if (ingredients.length === 0) {
       errLog("SEARCH_04", 404, "Not Found", {
         ing_search: ing_search,
+        message: "일치하는 재료가 없습니다."
       });
       return res.status(404).json({ message: "일치하는 재료가 없습니다." });
     }
@@ -296,15 +269,25 @@ router.post("/getMultiSearchList", async (req, res) => {
     );
 
     // 3. 재료 ID 리스트로 레시피 ID 검색
+    const recipePlaceholders = ingredientIds.map(() => "?").join(", ");
     const [recipes] = await pool.execute(
-      `SELECT r.recipe_id, r.recipe_title, r.recipe_thumbnail FROM Recipe r JOIN (SELECT recipe_id FROM IngredientSearch WHERE ingredient_id IN (?) GROUP BY recipe_id HAVING COUNT(DISTINCT ingredient_id) = ?) matched_recipes ON r.recipe_id = matched_recipes.recipe_id`,
-      [ingredientIds, ingredientIds.length]
+      `SELECT r.recipe_id, r.recipe_title, r.recipe_thumbnail 
+      FROM Recipe r 
+      JOIN (
+        SELECT recipe_id 
+        FROM IngredientSearch 
+        WHERE ingredient_id IN (${recipePlaceholders}) 
+        GROUP BY recipe_id 
+        HAVING COUNT(DISTINCT ingredient_id) = ?
+      ) matched_recipes ON r.recipe_id = matched_recipes.recipe_id`,
+      [...ingredientIds, ingredientIds.length]
     );
 
     // 3-1. 검색 결과가 없을 때 예외 처리
     if (recipes.length === 0) {
       errLog("SEARCH_04", 404, "Not Found", {
         ing_search: ing_search,
+        message: "재료가 모두 일치하는 레시피가 없습니다."
       });
       return res
         .status(404)
@@ -318,7 +301,9 @@ router.post("/getMultiSearchList", async (req, res) => {
       recipe_thumbnail: r.recipe_thumbnail,
     }));
 
-    res.json({ search_list });
+    res.status(200).json({ search_list });
+    errLog("SEARCH_04", 200, "OK");
+
   } catch (err) {
     errLog("SEARCH_04", 500, "Internal Server Error", {
       error: err.message,

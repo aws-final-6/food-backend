@@ -34,6 +34,7 @@ const recipeRouter = require("./routes/recipe");
 const searchRouter = require("./routes/search");
 const refrigRouter = require("./routes/refrig");
 const bookmarkRouter = require("./routes/bookmark");
+const searchFilterRouter = require("./routes/searchFilter");
 
 app.use(express.json());
 app.use("/", indexRouter);
@@ -44,6 +45,7 @@ app.use("/recipe", recipeRouter);
 app.use("/search", searchRouter);
 app.use("/refrig", refrigRouter);
 app.use("/bookmark", bookmarkRouter);
+app.use("/searchfilter", searchFilterRouter);
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
