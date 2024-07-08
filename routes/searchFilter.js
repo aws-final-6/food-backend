@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 const { validateSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
 const { errLog } = require("../utils/logUtils");
 
@@ -27,7 +27,7 @@ router.post("/getFilterList", async (req, res) => {
 
   try {
     // 1. SearchFilter에서 user_id로 SELECT
-    const [rows] = await pool.query(
+    const [rows] = await readPool.query(
       "SELECT ingredient_id FROM SearchFilter WHERE user_id = ?",
       [user_id]
     );
@@ -74,87 +74,91 @@ router.post("/updateFilterList", async (req, res) => {
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
 
+  let writeConnection;
+  let readConnection;
+
   try {
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
+    // 2. 현재 저장된 필터 가져오기
+    readConnection = await readPool.getConnection();
+    const [currentFilters] = await readConnection.query(
+      `SELECT ingredient_id FROM SearchFilter WHERE user_id = ?`,
+      [user_id]
+    );
+    readConnection.release();
+    const currentFilterIds = currentFilters.map(f => f.ingredient_id);
 
-    try {
-      // 2. 현재 저장된 필터 가져오기
-      const [currentFilters] = await connection.query(
-        `SELECT ingredient_id FROM SearchFilter WHERE user_id = ?`,
-        [user_id]
-      );
-      const currentFilterIds = currentFilters.map(f => f.ingredient_id);
+    // 3. 재료명으로 재료 ID를 검색
+    readConnection = await readPool.getConnection();
+    const placeholders = filter_list.map(() => "?").join(", ");
+    const [ingredients] = await readConnection.query(
+      `SELECT ingredient_id, ingredient_name FROM Ingredient WHERE ingredient_name IN (${placeholders})`,
+      filter_list
+    );
+    readConnection.release();
 
-      // 3. 재료명으로 재료 ID를 검색
-      const placeholders = filter_list.map(() => "?").join(", ");
-      const [ingredients] = await connection.query(
-        `SELECT ingredient_id, ingredient_name FROM Ingredient WHERE ingredient_name IN (${placeholders})`,
-        filter_list
-      );
+    const foundIngredientNames = ingredients.map(
+      ingredient => ingredient.ingredient_name
+    );
+    const notFoundIngredients = filter_list.filter(
+      name => !foundIngredientNames.includes(name)
+    );
 
-      const foundIngredientNames = ingredients.map(
-        ingredient => ingredient.ingredient_name
-      );
-      const notFoundIngredients = filter_list.filter(
-        name => !foundIngredientNames.includes(name)
-      );
-
-      // 4. 입력된 재료 중 저장되어 있지 않은 재료가 있는 경우 예외 처리
-      if (notFoundIngredients.length > 0) {
-        errLog("FILTER_02", 404, "Not Found", {
-          notFoundIngredients: notFoundIngredients,
-          message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
-            ", "
-          )}`,
-        });
-        return res.status(404).json({
-          message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
-            ", "
-          )}`,
-        });
-      }
-
-      // 5. 존재하는 재료의 ID 리스트 추출
-      const ingredientIds = ingredients.map(ingredient => ingredient.ingredient_id);
-
-      // 6. 추가할 필터와 삭제할 필터 구분
-      const filtersToAdd = ingredientIds.filter(id => !currentFilterIds.includes(id));
-      const filtersToRemove = currentFilterIds.filter(id => !ingredientIds.includes(id));
-
-      // 7. 필터 추가
-      if (filtersToAdd.length > 0) {
-        const addValues = filtersToAdd
-          .map(id => `(${pool.escape(user_id)}, ${id})`)
-          .join(", ");
-        await connection.query(
-          `INSERT INTO SearchFilter (user_id, ingredient_id) VALUES ${addValues}`
-        );
-      }
-
-      // 8. 필터 삭제
-      if (filtersToRemove.length > 0) {
-        const removePlaceholders = filtersToRemove.map(() => "?").join(", ");
-        await connection.query(
-          `DELETE FROM SearchFilter WHERE user_id = ? AND ingredient_id IN (${removePlaceholders})`,
-          [user_id, ...filtersToRemove]
-        );
-      }
-
-      // 9. 트랜잭션 커밋
-      await connection.commit();
-      errLog("FILTER_02", 200, "OK");
-      return res
-        .status(200)
-        .json({ message: "제외 필터가 성공적으로 저장되었습니다." });
-    } catch (err) {
-      // 트랜잭션 롤백
-      await connection.rollback();
-      throw err;
-    } finally {
-      connection.release();
+    // 4. 입력된 재료 중 저장되어 있지 않은 재료가 있는 경우 예외 처리
+    if (notFoundIngredients.length > 0) {
+      errLog("FILTER_02", 404, "Not Found", {
+        notFoundIngredients: notFoundIngredients,
+        message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
+          ", "
+        )}`,
+      });
+      return res.status(404).json({
+        message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
+          ", "
+        )}`,
+      });
     }
+
+    // 5. 존재하는 재료의 ID 리스트 추출
+    const ingredientIds = ingredients.map(ingredient => ingredient.ingredient_id);
+
+    // 6. 추가할 필터와 삭제할 필터 구분
+    const filtersToAdd = ingredientIds.filter(id => !currentFilterIds.includes(id));
+    const filtersToRemove = currentFilterIds.filter(id => !ingredientIds.includes(id));
+
+    // 7. 트랜잭션 시작
+    writeConnection = await writePool.getConnection();
+    await writeConnection.beginTransaction();
+
+    // 8. 필터 추가
+    if (filtersToAdd.length > 0) {
+      const addValues = filtersToAdd
+        .map(id => `(${writeConnection.escape(user_id)}, ${id})`)
+        .join(", ");
+      await writeConnection.query(
+        `INSERT INTO SearchFilter (user_id, ingredient_id) VALUES ${addValues}`
+      );
+    }
+
+    // 9. 필터 삭제
+    if (filtersToRemove.length > 0) {
+      const removePlaceholders = filtersToRemove.map(() => "?").join(", ");
+      await writeConnection.query(
+        `DELETE FROM SearchFilter WHERE user_id = ? AND ingredient_id IN (${removePlaceholders})`,
+        [user_id, ...filtersToRemove]
+      );
+    }
+
+    // 10. 트랜잭션 커밋
+    await writeConnection.commit();
+    errLog("FILTER_02", 200, "OK");
+    return res
+      .status(200)
+      .json({ message: "제외 필터가 성공적으로 저장되었습니다." });
+
   } catch (err) {
+    // 트랜잭션 롤백
+    if (writeConnection) await writeConnection.rollback();
+
     errLog("FILTER_02", 500, "Internal Server Error", {
       user_id: user_id,
       error: err.message,
@@ -162,6 +166,9 @@ router.post("/updateFilterList", async (req, res) => {
     res.status(500).json({
       message: "제외 필터 저장에 실패했습니다. 다시 시도해주세요.",
     });
+  } finally {
+    if (writeConnection) writeConnection.release();
+    if (readConnection) readConnection.release();
   }
 });
 
@@ -181,7 +188,7 @@ router.post("/searchIngredient", async (req, res) => {
   try {
     // 2. 재료명으로 재료 ID를 검색
     const placeholders = filter_list.map(() => "?").join(", ");
-    const [ingredients] = await pool.query(
+    const [ingredients] = await readPool.query(
       `SELECT ingredient_id, ingredient_name FROM Ingredient WHERE ingredient_name IN (${placeholders})`,
       filter_list
     );

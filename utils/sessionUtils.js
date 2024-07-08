@@ -1,9 +1,9 @@
 // Session테이블에서 user_id, access_token 일치하는지 검증
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 
 async function validateSession(user_id, access_token) {
-  const [sessionRows] = await pool.query(
+  const [sessionRows] = await readPool.query(
     "SELECT * FROM Session WHERE user_id = ? AND access_token = ?",
     [user_id, access_token]
   );
@@ -11,7 +11,7 @@ async function validateSession(user_id, access_token) {
 }
 
 async function deleteSession(user_id) {
-  await pool.query("DELETE FROM Session WHERE user_id = ?", [user_id]);
+  await writePool.query("DELETE FROM Session WHERE user_id = ?", [user_id]);
 }
 
 module.exports = {

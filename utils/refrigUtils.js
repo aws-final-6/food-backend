@@ -1,8 +1,8 @@
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 
 // user_id를 이용해 냉장고 정보를 불러오기
 async function getRefrigeratorData(user_id) {
-  const [rows] = await pool.query(
+  const [rows] = await readPool.query(
     `
     SELECT 
       r.refrigerator_id, r.refrigerator_name, r.refrigerator_type,

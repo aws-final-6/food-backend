@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const pool = require("../scripts/connector");
+const { readPool, writePool } = require("../scripts/connector");
 const { errLog } = require("../utils/logUtils");
 
 router.use(express.json());
@@ -15,13 +15,13 @@ router.post("/getProfile", async (req, res) => {
 
   try {
     // 1. User 테이블에서 user_id를 키값으로 유저 검색 - user_email
-    const [getUserProfile] = await pool.query(
+    const [getUserProfile] = await readPool.query(
       "SELECT user_email FROM User WHERE user_id = ?",
       [user_id]
     );
 
     // 2. MyPage 테이블에서 user_id를 키값으로 유저 검색 - user_nickname, user_subscription, cate_no, situ_no
-    const [getMyPageProfile] = await pool.query(
+    const [getMyPageProfile] = await readPool.query(
       "SELECT user_nickname, user_subscription, cate_no, situ_no FROM MyPage WHERE user_id = ?",
       [user_id]
     );
@@ -63,24 +63,28 @@ router.post("/getProfile", async (req, res) => {
 router.post("/updateProfile", async (req, res) => {
   const { user_id, user_nickname, user_subscription, user_prefer, user_email } =
     req.body;
-  console.log(user_subscription);
 
-  // 최종적인 회원 정보 업데이트 던지기
-  const connection = await pool.getConnection();
+  let pre_subscription = null;
+  const readConnection = await readPool.getConnection();
+  const writeConnection = await writePool.getConnection();
+
   try {
-    await connection.beginTransaction();
-
-    // 0. Subscription 체크를 위해 이전 값 불러오기
-    const [rows] = await connection.query(
+    // 0. Subscription 체크를 위해 이전 값 불러오기 (readPool 사용)
+    const [rows] = await readConnection.query(
       "SELECT user_subscription FROM MyPage WHERE user_id = ?",
       [user_id]
     );
-    const pre_subscription = rows.length
+    pre_subscription = rows.length
       ? Boolean(rows[0].user_subscription)
       : null;
+    
+    readConnection.release(); // 읽기 작업 후 연결 해제
+
+    // 트랜잭션 시작 (writePool 사용)
+    await writeConnection.beginTransaction();
 
     // 1. MyPage 테이블 업데이트
-    await connection.query(
+    await writeConnection.query(
       "UPDATE MyPage SET user_nickname = ?, user_subscription = ?, cate_no = ?, situ_no = ? WHERE user_id = ?",
       [
         user_nickname,
@@ -96,22 +100,22 @@ router.post("/updateProfile", async (req, res) => {
       // 2-1. user_subscription이 false -> true일 때 Subscription 테이블에 데이터 추가
       for (const prefer of user_prefer) {
         const { cate_no, situ_no } = prefer;
-        await connection.query(
+        await writeConnection.query(
           "INSERT INTO Subscription (user_id, user_email, user_nickname, cate_no, situ_no) VALUES (?, ?, ?, ?, ?)",
           [user_id, user_email, user_nickname, cate_no, situ_no]
         );
       }
     } else if (pre_subscription === true && user_subscription === false) {
       // 2-2. user_subscription이 true -> false일 때 Subscription 테이블에서 해당 유저 정보 삭제
-      await connection.query("DELETE FROM Subscription WHERE user_id = ?", [
+      await writeConnection.query("DELETE FROM Subscription WHERE user_id = ?", [
         user_id,
       ]);
     }
 
-    await connection.commit();
+    await writeConnection.commit();
     res.status(200).json({ message: "마이페이지가 저장되었습니다." });
   } catch (err) {
-    await connection.rollback();
+    await writeConnection.rollback();
     errLog("MYPAGE_02", 500, "Internal Server Error", {
       user_id: user_id,
       error: err.message,
@@ -120,7 +124,7 @@ router.post("/updateProfile", async (req, res) => {
       .status(500)
       .json({ message: "마이페이지 저장에 실패했습니다. 다시 시도해주세요." });
   } finally {
-    connection.release();
+    writeConnection.release(); // 트랜잭션 작업 후 연결 해제
   }
 });
 
