@@ -269,8 +269,7 @@ router.post("/refreshToken", async (req, res) => {
           });
 
           // 1-1-2. 결과로 갱신된 access_token, refresh_token을 받게됨
-          const { access_token, refresh_token: new_refresh_token } =
-            response.data;
+          const { access_token, refresh_token } = response.data;
 
           // 1-1-3. 받아온 access_token을 이용해 user_id를 받아옴
           const userInfoUrl = "https://kapi.kakao.com/v2/user/me";
@@ -324,8 +323,7 @@ router.post("/refreshToken", async (req, res) => {
           );
 
           // 1-2-2. 결과로 갱신된 access_token, refresh_token을 받게됨
-          const { access_token, refresh_token: new_refresh_token } =
-            naverResponse.data;
+          const { access_token, refresh_token } = naverResponse.data;
 
           // 1-2-3. 받아온 access_token을 이용해 user_id를 받아옴
           const userInfoUrl = "https://openapi.naver.com/v1/nid/me";
@@ -380,8 +378,7 @@ router.post("/refreshToken", async (req, res) => {
           );
 
           // 1-3-3. 결과로 갱신된 access_token, refresh_token을 받게됨
-          const { access_token, refresh_token: new_refresh_token } =
-            googleResponse.data;
+          const { access_token, refresh_token } = googleResponse.data;
 
           // 1-3-4. 받아온 access_token을 이용해 user_id를 받아옴
           const userInfoUrl = "https://www.googleapis.com/oauth2/v2/userinfo";
