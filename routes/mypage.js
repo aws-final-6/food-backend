@@ -106,6 +106,16 @@ router.post("/updateProfile", async (req, res) => {
       await connection.query("DELETE FROM Subscription WHERE user_id = ?", [
         user_id,
       ]);
+    } else {
+      // user_subscription 값이 변하지 않았을 때
+      // 다른 값들만 업데이트
+      for (const prefer of user_prefer) {
+        const { cate_no, situ_no } = prefer;
+        await connection.query(
+          "UPDATE Subscription SET user_email = ?, user_nickname = ? WHERE user_id = ? AND cate_no = ? AND situ_no = ?",
+          [user_email, user_nickname, user_id, cate_no, situ_no]
+        );
+      }
     }
 
     await connection.commit();
