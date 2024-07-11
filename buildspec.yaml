@@ -8,13 +8,7 @@ phases:
 
   pre_build:
     commands:
-      - echo Cloning repository...
-      - git clone https://x-access-token:${TOKEN_GITHUB}@github.com/aws-final-6/food-backend-msq.git
-      - cd food-backend-msq
-      - echo Setting up yq...
-      - wget -qO ~/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-      - chmod +x ~/yq
-      - ~/yq --version
+      - echo Starting!!
 
   build:
     commands:
