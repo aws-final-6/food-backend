@@ -13,18 +13,18 @@ phases:
   build:
     commands:
       - echo Building the Docker image...
-      - docker build -t ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-db-img-msq:${CODEBUILD_BUILD_NUMBER} -f Dockerfile .
+      - docker build -t ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-be-img-nod:${CODEBUILD_BUILD_NUMBER} -f Dockerfile .
       - echo "Docker build completed"
       - docker images
 
   post_build:
     commands:
       - echo Tagging the Docker image...
-      - docker tag ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-db-img-msq:${CODEBUILD_BUILD_NUMBER} ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-db-img-msq:latest
+      - docker tag ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-be-img-nod:${CODEBUILD_BUILD_NUMBER} ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-be-img-nod:latest
       - echo "Docker image tagged"
       - echo Pushing the Docker image to Seoul region ECR...
-      - docker push ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-db-img-msq:${CODEBUILD_BUILD_NUMBER}
-      - docker push ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-db-img-msq:latest
+      - docker push ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-be-img-nod:${CODEBUILD_BUILD_NUMBER}
+      - docker push ${ECR_REGISTRY}/mylittlerecipebook/mlr-prd-be-img-nod:latest
       - echo "Docker push completed"
 
 artifacts:
