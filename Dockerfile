@@ -1,6 +1,11 @@
 # Use base node 18.19.1 image from Docker hub
 FROM node:18.19.1-alpine
 
+# Update Alpine packages and install specific versions
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache busybox openssl
+
 # Set the working directory
 WORKDIR /food-backend-msq
 
