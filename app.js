@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 require("dotenv").config();
 const { connectMySQL } = require("./scripts/connectMySQL");
-const mysql = require('./models/sequelize');
+const mysql = require("./models/sequelize");
 
 const port = process.env.PORT || 3000;
 
@@ -13,21 +13,17 @@ connectMySQL().catch((err) => {
 });
 
 // Sequelize 데이터베이스 동기화
-mysql.sequelize.sync().then(() => { 
-  console.log("데이터베이스와 동기화 완료");
-}).catch((err) => {
-  console.error("데이터베이스 동기화 중 오류 발생:", err);
-  process.exit(1);
-});
+mysql.sequelize
+  .sync()
+  .then(() => {
+    console.log("데이터베이스와 동기화 완료");
+  })
+  .catch((err) => {
+    console.error("데이터베이스 동기화 중 오류 발생:", err);
+    process.exit(1);
+  });
 
-// swagger
-const { swaggerUi, specs } = require("./swagger/swagger");
-
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
-
-//
 const indexRouter = require("./routes/index");
-// const testRouter = require("./routes/test"); 
 const authRouter = require("./routes/auth");
 const mypageRouter = require("./routes/mypage");
 const recipeRouter = require("./routes/recipe");
@@ -38,7 +34,6 @@ const searchFilterRouter = require("./routes/searchFilter");
 
 app.use(express.json());
 app.use("/", indexRouter);
-// app.use("/test", testRouter);
 app.use("/auth", authRouter);
 app.use("/mypage", mypageRouter);
 app.use("/recipe", recipeRouter);
