@@ -1,5 +1,6 @@
 function errLog(apiId, statusCode, statusMessage, additionalInfo = {}) {
   const logMessage = {
+    type: "ERROR",
     apiId: apiId, // AUTH_01
     statusCode: statusCode, // 404
     statusMessage: statusMessage, // Not Found
@@ -9,7 +10,28 @@ function errLog(apiId, statusCode, statusMessage, additionalInfo = {}) {
   console.log("Backend: ", JSON.stringify(logMessage));
 }
 
-module.exports = { errLog };
+function infoLog(apiId, reqBody = {}) {
+  const logMessage = {
+    type: "INFO",
+    apiId: apiId,
+    reqBody: reqBody,
+  };
+
+  console.log("Backend: ", JSON.stringify(logMessage));
+}
+
+function successLog(apiId, resStatus, resBody = {}) {
+  const logMessage = {
+    type: "SUCCESS",
+    apiId: apiId,
+    resStatus: resStatus,
+    resBody: resBody,
+  };
+
+  console.log("Backend: ", JSON.stringify(logMessage));
+}
+
+module.exports = { errLog, infoLog, successLog };
 
 // import
 // const { errLog } = require("../utils/logUtils");

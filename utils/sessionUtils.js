@@ -2,6 +2,14 @@
 
 const pool = require("../scripts/connector");
 
+async function checkSession(user_id) {
+  const [sessionRows] = await pool.query(
+    "SELECT * FROM Session WHERE user_id = ?",
+    [user_id]
+  );
+  return sessionRows.length;
+}
+
 async function validateSession(user_id, access_token) {
   const [sessionRows] = await pool.query(
     "SELECT * FROM Session WHERE user_id = ? AND access_token = ?",
@@ -17,4 +25,5 @@ async function deleteSession(user_id) {
 module.exports = {
   validateSession,
   deleteSession,
+  checkSession,
 };
