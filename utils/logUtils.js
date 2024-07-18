@@ -20,30 +20,15 @@ function infoLog(apiId, reqBody = {}) {
   console.log("Backend: ", JSON.stringify(logMessage));
 }
 
-function successLog(apiId, resStatus, resBody = {}) {
+function successLog(apiId) {
   const logMessage = {
     type: "SUCCESS",
-    apiId: apiId,
-    resStatus: resStatus,
-    resBody: resBody,
+    apiId: apiId, // AUTH_01
+    statusCode: 200,
+    statusMessage: "OK",
   };
 
   console.log("Backend: ", JSON.stringify(logMessage));
 }
 
 module.exports = { errLog, infoLog, successLog };
-
-// import
-// const { errLog } = require("../utils/logUtils");
-
-// 작성예시
-// errLog('AUTH_01', 404, 'Not Found', { user_id: 'user123', reason: 'Recipe not found' });
-
-// 결과예시
-// {
-//   "apiId": "AUTH_01",
-//   "statusCode": 404,
-//   "statusMessage": "Not Found",
-//   "user_id": "user123",
-//   "reason": "Recipe not found",
-// }
