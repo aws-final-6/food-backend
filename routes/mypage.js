@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const { validateSession } = require("../utils/sessionUtils");
 
 const pool = require("../scripts/connector");
-const { errLog } = require("../utils/logUtils");
+const { errLog, infoLog } = require("../utils/logUtils");
 
 router.use(express.json());
 
@@ -12,6 +13,13 @@ router.use(express.json());
 router.post("/getProfile", async (req, res) => {
   // 0. user_id 를 받아옴
   const { user_id, access_token } = req.body;
+  const isValidSession = await validateSession(user_id, access_token);
+  if (!isValidSession) {
+    errLog("MYPAGE_01", 401, "Unauthorized", { user_id: user_id });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
+  }
 
   try {
     // 1. User 테이블에서 user_id를 키값으로 유저 검색 - user_email
@@ -61,23 +69,29 @@ router.post("/getProfile", async (req, res) => {
 
 // MYPAGE_02 : 마이페이지 수정
 router.post("/updateProfile", async (req, res) => {
-  const { user_id, user_nickname, user_subscription, user_prefer, user_email } =
-    req.body;
-  console.log(user_subscription);
+  const {
+    user_id,
+    user_nickname,
+    user_subscription,
+    user_prefer,
+    user_email,
+    access_token,
+  } = req.body;
+
+  infoLog("MYPAGE_02", req.body);
+
+  const isValidSession = await validateSession(user_id, access_token);
+  if (!isValidSession) {
+    errLog("MYPAGE_02", 401, "Unauthorized", { user_id: user_id });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
+  }
 
   // 최종적인 회원 정보 업데이트 던지기
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-
-    // 0. Subscription 체크를 위해 이전 값 불러오기
-    const [rows] = await connection.query(
-      "SELECT user_subscription FROM MyPage WHERE user_id = ?",
-      [user_id]
-    );
-    const pre_subscription = rows.length
-      ? Boolean(rows[0].user_subscription)
-      : null;
 
     // 1. MyPage 테이블 업데이트
     await connection.query(
@@ -91,8 +105,17 @@ router.post("/updateProfile", async (req, res) => {
       ]
     );
 
-    // 2. Subscription 테이블 업데이트
-    if (pre_subscription === false && user_subscription === true) {
+    // 0. 사용자가 이전에 구독했는지 확인
+    const [rows] = await connection.query(
+      "SELECT user_id FROM Subscription WHERE user_id = ?",
+      [user_id]
+    );
+
+    console.log("presubscription", rows);
+
+    // 1. Subscription 테이블 업데이트
+
+    if (rows.length == 0 && user_subscription == "true") {
       // 2-1. user_subscription이 false -> true일 때 Subscription 테이블에 데이터 추가
       for (const prefer of user_prefer) {
         const { cate_no, situ_no } = prefer;
@@ -101,11 +124,21 @@ router.post("/updateProfile", async (req, res) => {
           [user_id, user_email, user_nickname, cate_no, situ_no]
         );
       }
-    } else if (pre_subscription === true && user_subscription === false) {
+    } else if (rows.length > 0 && user_subscription != "true") {
       // 2-2. user_subscription이 true -> false일 때 Subscription 테이블에서 해당 유저 정보 삭제
       await connection.query("DELETE FROM Subscription WHERE user_id = ?", [
         user_id,
       ]);
+    } else {
+      // user_subscription 값이 변하지 않았을 때
+      // 다른 값들만 업데이트
+      for (const prefer of user_prefer) {
+        const { cate_no, situ_no } = prefer;
+        await connection.query(
+          "UPDATE Subscription SET user_email = ?, user_nickname = ? WHERE user_id = ? AND cate_no = ? AND situ_no = ?",
+          [user_email, user_nickname, user_id, cate_no, situ_no]
+        );
+      }
     }
 
     await connection.commit();
@@ -121,6 +154,53 @@ router.post("/updateProfile", async (req, res) => {
       .json({ message: "마이페이지 저장에 실패했습니다. 다시 시도해주세요." });
   } finally {
     connection.release();
+  }
+});
+
+// MYPAGE_03 : 사용자 선호도 가져오기
+router.post("/getBasicProfile", async (req, res) => {
+  // 0. user_id 를 받아옴
+  const { user_id, access_token } = req.body;
+  const isValidSession = await validateSession(user_id, access_token);
+  if (!isValidSession) {
+    errLog("MYPAGE_03", 401, "Unauthorized", { user_id: user_id });
+    return res
+      .status(401)
+      .json({ message: "user_id와 access_token이 일치하지 않습니다." });
+  }
+
+  try {
+    // 1. MyPage 테이블에서 user_id를 키값으로 유저 검색 - cate_no, situ_no
+    const [getUserProfile] = await pool.query(
+      "SELECT user_nickname, cate_no, situ_no FROM MyPage WHERE user_id = ?",
+      [user_id]
+    );
+
+    if (!getUserProfile.length || !getUserProfile.length) {
+      errLog("MYPAGE_03", 400, "Bad Request", { user_id: user_id });
+      return res.status(400).json({ message: "잘못된 유저 정보입니다." });
+    }
+
+    // 3. 결과값 클라이언트로 보내기 위해 가져오기
+    const user_nickname = getUserProfile[0].user_nickname;
+    const user_prefer = getUserProfile.map((profile) => ({
+      cate_no: profile.cate_no,
+      situ_no: profile.situ_no,
+    }));
+
+    // 4. 클라이언트로 전달
+    return res.status(200).json({
+      user_nickname,
+      user_prefer,
+    });
+  } catch (err) {
+    errLog("MYPAGE_03", 500, "Internal Server Error", {
+      user_id: user_id,
+      error: err.message,
+    });
+    return res.status(500).json({
+      message: "마이페이지 불러오기에 실패했습니다. 다시 시도해주세요.",
+    });
   }
 });
 

@@ -4,8 +4,12 @@ const axios = require("axios");
 const qs = require("qs");
 
 const pool = require("../scripts/connector");
-const { validateSession, deleteSession } = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
-const { errLog } = require("../utils/logUtils");
+const {
+  validateSession,
+  deleteSession,
+  checkSession,
+} = require("../utils/sessionUtils"); // 유틸리티 함수 임포트
+const { errLog, infoLog } = require("../utils/logUtils");
 
 require("dotenv").config();
 router.use(express.json());
@@ -39,6 +43,8 @@ const googleReq = {
 
 // .env front uri
 const front_uri = process.env.FRONT_URI;
+
+let userAgent = "";
 
 // AUTH_01 : 토큰검증
 router.post("/checkToken", async (req, res) => {
@@ -185,7 +191,10 @@ router.post("/checkToken", async (req, res) => {
 
 // AUTH_02 : 토큰요청
 router.post("/requestToken", function (req, res) {
-  const { user_provider } = req.body;
+  const { user_provider, user_agent } = req.body;
+  infoLog("AUTH_02", req.body);
+  // userAgent 저장
+  userAgent = user_agent;
 
   // 0. 유효한 user_provider 목록
   const validProviders = ["kakao", "naver", "google"];
@@ -461,7 +470,7 @@ router.get("/kakao/redirect", async (req, res) => {
     const user_email = userInfo.kakao_account.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User collection에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+    const [rows] = await pool.query("SELECT * FROM MyPage WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -469,18 +478,34 @@ router.get("/kakao/redirect", async (req, res) => {
       // 2-2. DB에 없을 경우, 회원가입으로 넘어가도록 함, 유저정보 저장하지 않음
       res.status(200).redirect(
         // 2-3. user_id, access_token, refresh_token, user_email, new=true 전송
-        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}`
+        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}&provider=kakao`
       );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query(
-        "UPDATE Session SET access_token = ? WHERE user_id = ?",
-        [access_token, user_id]
-      );
+      const checkUser = await checkSession(user_id);
+      console.log("checkuser", checkUser);
 
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+      // 사용자별로 최대 3개의 세션만 보유 할수 있도록 제한
+      if (checkUser == 3) {
+        // 사용자가 다른 창으로 로그인 중
+        await connection.query(
+          "UPDATE Session SET access_token = ?, user_agent = ?, created_at = CURRENT_TIMESTAMP WHERE session_id = (SELECT session_id FROM ( SELECT session_id FROM Session WHERE user_id = ? ORDER BY created_at ASC LIMIT 1 ) AS subquery);",
+          [access_token, userAgent, user_id]
+        );
+      } else {
+        // 로그아웃 된 사용자
+        await connection.query(
+          "INSERT INTO Session (user_id, access_token, user_agent) VALUES (?, ?, ?)",
+          [user_id, access_token, userAgent]
+        );
+      }
+      await connection.commit();
+      const user_nickname = rows[0].user_nickname;
       res.status(200).redirect(
         // 2-5. user_id, access_token, refresh_token, new=false 전송
-        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false`
+        `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false&provider=kakao&user_email=${user_email}`
       );
     }
   } catch (err) {
@@ -533,7 +558,7 @@ router.get("/naver/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+    const [rows] = await pool.query("SELECT * FROM MyPage WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -542,7 +567,7 @@ router.get("/naver/redirect", async (req, res) => {
       res
         .status(200)
         .redirect(
-          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}`
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}&provider=naver`
         );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
@@ -554,7 +579,7 @@ router.get("/naver/redirect", async (req, res) => {
       res
         .status(200)
         .redirect(
-          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false`
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false&provider=naver&user_email=${user_email}`
         );
     }
   } catch (err) {
@@ -608,7 +633,7 @@ router.get("/google/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
+    const [rows] = await pool.query("SELECT * FROM MyPage WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -617,7 +642,7 @@ router.get("/google/redirect", async (req, res) => {
       res
         .status(200)
         .redirect(
-          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}`
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=true&user_email=${user_email}&provider=google`
         );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
@@ -625,11 +650,11 @@ router.get("/google/redirect", async (req, res) => {
         "UPDATE Session SET access_token = ? WHERE user_id = ?",
         [access_token, user_id]
       );
-
+      const user_nickname = rows[0].user_nickname;
       res
         .status(200)
         .redirect(
-          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false`
+          `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false&provider=google&user_email=${user_email}`
         );
     }
   } catch (err) {
@@ -769,7 +794,7 @@ router.post("/signup", async (req, res) => {
   );
 
   let connection;
-  const subscription = Boolean(user_subscription);
+  const subscription = Boolean(user_subscription == "true");
 
   try {
     // 1. 이메일 중복 체크
