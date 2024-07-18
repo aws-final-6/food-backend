@@ -470,7 +470,7 @@ router.get("/kakao/redirect", async (req, res) => {
     const user_email = userInfo.kakao_account.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User collection에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM MyPage WHERE user_id = ?", [
+    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -502,7 +502,7 @@ router.get("/kakao/redirect", async (req, res) => {
         );
       }
       await connection.commit();
-      const user_nickname = rows[0].user_nickname;
+
       res.status(200).redirect(
         // 2-5. user_id, access_token, refresh_token, new=false 전송
         `${front_uri}/auth?user_id=${user_id}&access_token=${access_token}&refresh_token=${refresh_token}&new=false&provider=kakao&user_email=${user_email}`
@@ -558,7 +558,7 @@ router.get("/naver/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM MyPage WHERE user_id = ?", [
+    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -633,7 +633,7 @@ router.get("/google/redirect", async (req, res) => {
     const user_email = userInfo.email;
 
     // 2-1. 사용자 정보 중 고유값인 id를 추출하여 User 테이블에 있는지(회원인지) 확인
-    const [rows] = await pool.query("SELECT * FROM MyPage WHERE user_id = ?", [
+    const [rows] = await pool.query("SELECT * FROM User WHERE user_id = ?", [
       user_id,
     ]);
 
@@ -650,7 +650,7 @@ router.get("/google/redirect", async (req, res) => {
         "UPDATE Session SET access_token = ? WHERE user_id = ?",
         [access_token, user_id]
       );
-      const user_nickname = rows[0].user_nickname;
+
       res
         .status(200)
         .redirect(
