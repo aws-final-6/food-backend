@@ -7,7 +7,7 @@ const csv = require("csv-parser");
 const moment = require("moment-timezone");
 
 const pool = require("../scripts/connector");
-const { errLog } = require("../utils/logUtils");
+const { errLog, infoLog, successLog } = require("../utils/logUtils");
 require("dotenv").config();
 
 router.use(express.json());
