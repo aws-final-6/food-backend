@@ -1,16 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const { validateSession } = require("../utils/sessionUtils");
-
 const pool = require("../scripts/connector");
-const { errLog, infoLog } = require("../utils/logUtils");
-
+const { errLog, infoLog, successLog } = require("../utils/logUtils");
 router.use(express.json());
 
 // BaseUrl : /mypage
 
 // MYPAGE_01 : 마이페이지 불러오기
 router.post("/getProfile", async (req, res) => {
+  infoLog("MYPAGE_01", req.body);
   // 0. user_id 를 받아옴
   const { user_id, access_token } = req.body;
   const isValidSession = await validateSession(user_id, access_token);
@@ -49,6 +48,7 @@ router.post("/getProfile", async (req, res) => {
     }));
 
     // 4. 클라이언트로 전달
+    successLog("MYPAGE_01");
     return res.status(200).json({
       user_id,
       user_email,
@@ -69,6 +69,7 @@ router.post("/getProfile", async (req, res) => {
 
 // MYPAGE_02 : 마이페이지 수정
 router.post("/updateProfile", async (req, res) => {
+  infoLog("MYPAGE_02", req.body);
   const {
     user_id,
     user_nickname,
@@ -77,8 +78,6 @@ router.post("/updateProfile", async (req, res) => {
     user_email,
     access_token,
   } = req.body;
-
-  infoLog("MYPAGE_02", req.body);
 
   const isValidSession = await validateSession(user_id, access_token);
   if (!isValidSession) {
@@ -142,6 +141,7 @@ router.post("/updateProfile", async (req, res) => {
     }
 
     await connection.commit();
+    successLog("MYPAGE_02");
     res.status(200).json({ message: "마이페이지가 저장되었습니다." });
   } catch (err) {
     await connection.rollback();
@@ -159,6 +159,7 @@ router.post("/updateProfile", async (req, res) => {
 
 // MYPAGE_03 : 사용자 선호도 가져오기
 router.post("/getBasicProfile", async (req, res) => {
+  infoLog("MYPAGE_03", req.body);
   // 0. user_id 를 받아옴
   const { user_id, access_token } = req.body;
   const isValidSession = await validateSession(user_id, access_token);
@@ -189,6 +190,7 @@ router.post("/getBasicProfile", async (req, res) => {
     }));
 
     // 4. 클라이언트로 전달
+    successLog("MYPAGE_03");
     return res.status(200).json({
       user_nickname,
       user_prefer,
