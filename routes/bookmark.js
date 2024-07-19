@@ -1,16 +1,15 @@
 const express = require("express");
 const router = express.Router();
-
 const pool = require("../scripts/connector");
 const { validateSession } = require("../utils/sessionUtils");
-const { errLog } = require("../utils/logUtils");
-
+const { errLog, infoLog, successLog } = require("../utils/logUtils");
 router.use(express.json());
 
 // BaseUrl : /bookmark
 
 // BOOKMK_01 : 북마크 가져오기 - 레시피 목록에서 쓰일 북마크 목록
 router.post("/getBookmark", async (req, res) => {
+  infoLog("BOOKMK_01", req.body);
   const { user_id, access_token } = req.body;
 
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
@@ -37,7 +36,7 @@ router.post("/getBookmark", async (req, res) => {
 
     // 3. 북마크 목록 반환
     const user_bookmark = rows.map((row) => row.recipe_id);
-
+    successLog("BOOKMK_01");
     return res.status(200).json({ user_bookmark });
   } catch (err) {
     errLog("BOOKMK_01", 500, "Internal Server Error", {
@@ -52,6 +51,7 @@ router.post("/getBookmark", async (req, res) => {
 
 // BOOKMK_02 : 북마크 가져오기 - 마이페이지에서 쓰일 북마크 목록
 router.post("/getBookmarkList", async (req, res) => {
+  infoLog("BOOKMK_02", req.body);
   const { user_id, access_token } = req.body;
 
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
@@ -81,7 +81,7 @@ router.post("/getBookmarkList", async (req, res) => {
       recipe_id: row.recipe_id.toString(),
       recipe_title: row.recipe_title,
     }));
-
+    successLog("BOOKMK_02");
     return res.status(200).json({ user_bookmark });
   } catch (err) {
     errLog("BOOKMK_02", 500, "Internal Server Error", {
@@ -96,6 +96,7 @@ router.post("/getBookmarkList", async (req, res) => {
 
 // BOOKMK_03 : 북마크 삭제
 router.post("/removeBookmark", async (req, res) => {
+  infoLog("BOOKMK_03", req.body);
   const { user_id, access_token, recipe_id } = req.body;
 
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
@@ -122,7 +123,7 @@ router.post("/removeBookmark", async (req, res) => {
       "DELETE FROM Bookmark WHERE user_id = ? AND recipe_id = ?",
       [user_id, recipe_id]
     );
-
+    successLog("BOOKMK_03");
     return res
       .status(200)
       .json({ message: "북마크가 성공적으로 삭제되었습니다." });
@@ -140,6 +141,7 @@ router.post("/removeBookmark", async (req, res) => {
 
 // BOOKMK_04 : 북마크 추가
 router.post("/updateBookmark", async (req, res) => {
+  infoLog("BOOKMK_04", req.body);
   const { user_id, access_token, recipe_id } = req.body;
 
   // 0. Session 테이블에서 user_id와 access_token이 올바르게 짝지어져 있는지 확인
@@ -166,7 +168,7 @@ router.post("/updateBookmark", async (req, res) => {
       "INSERT INTO Bookmark (user_id, recipe_id) VALUES (?, ?)",
       [user_id, recipe_id]
     );
-
+    successLog("BOOKMK_04");
     return res
       .status(200)
       .json({ message: "북마크가 성공적으로 추가되었습니다." });
