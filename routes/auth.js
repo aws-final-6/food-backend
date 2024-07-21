@@ -572,7 +572,7 @@ router.get("/naver/redirect", async (req, res) => {
     ]);
 
     if (rows.length === 0) {
-      // 2-2. DB에 없을 경우, 회원가입으로 넘기도록 함
+      // 2-2. DB에 없을 경우, 회원가입으로 넘어가도록 함, 유저정보 저장하지 않음
       successLog("AUTH_05");
       res
         .status(200)
@@ -581,10 +581,25 @@ router.get("/naver/redirect", async (req, res) => {
         );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query(
-        "UPDATE Session SET access_token = ? WHERE user_id = ?",
-        [access_token, user_id]
-      );
+      const checkUser = await checkSession(user_id);
+
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+      // 사용자별로 최대 3개의 세션만 보유 할수 있도록 제한
+      if (checkUser == 3) {
+        // 사용자가 다른 창으로 로그인 중
+        await connection.query(
+          "UPDATE Session SET access_token = ?, user_agent = ?, created_at = CURRENT_TIMESTAMP WHERE session_id = (SELECT session_id FROM ( SELECT session_id FROM Session WHERE user_id = ? ORDER BY created_at ASC LIMIT 1 ) AS subquery);",
+          [access_token, userAgent, user_id]
+        );
+      } else {
+        // 로그아웃 된 사용자
+        await connection.query(
+          "INSERT INTO Session (user_id, access_token, user_agent) VALUES (?, ?, ?)",
+          [user_id, access_token, userAgent]
+        );
+      }
+      await connection.commit();
       successLog("AUTH_05");
       res
         .status(200)
@@ -658,10 +673,25 @@ router.get("/google/redirect", async (req, res) => {
         );
     } else {
       // 2-4. DB에 있을 경우 (= 회원일 경우), 세션 업데이트
-      await pool.query(
-        "UPDATE Session SET access_token = ? WHERE user_id = ?",
-        [access_token, user_id]
-      );
+      const checkUser = await checkSession(user_id);
+
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+      // 사용자별로 최대 3개의 세션만 보유 할수 있도록 제한
+      if (checkUser == 3) {
+        // 사용자가 다른 창으로 로그인 중
+        await connection.query(
+          "UPDATE Session SET access_token = ?, user_agent = ?, created_at = CURRENT_TIMESTAMP WHERE session_id = (SELECT session_id FROM ( SELECT session_id FROM Session WHERE user_id = ? ORDER BY created_at ASC LIMIT 1 ) AS subquery);",
+          [access_token, userAgent, user_id]
+        );
+      } else {
+        // 로그아웃 된 사용자
+        await connection.query(
+          "INSERT INTO Session (user_id, access_token, user_agent) VALUES (?, ?, ?)",
+          [user_id, access_token, userAgent]
+        );
+      }
+      await connection.commit();
       successLog("AUTH_06");
       res
         .status(200)
