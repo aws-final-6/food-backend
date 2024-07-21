@@ -110,8 +110,6 @@ router.post("/updateProfile", async (req, res) => {
       [user_id]
     );
 
-    console.log("presubscription", rows);
-
     // 1. Subscription 테이블 업데이트
 
     if (rows.length == 0 && user_subscription == "true") {
