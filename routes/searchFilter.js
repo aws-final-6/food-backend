@@ -173,56 +173,44 @@ router.post("/updateFilterList", async (req, res) => {
 // FILTER_03 : 제외 필터 설정을 위해 재료 테이블에서 재료 검색
 router.post("/searchIngredient", async (req, res) => {
   infoLog("FILTER_03", req.body);
-  const { filter_list } = req.body;
+  const { keyword } = req.body;
 
-  // 1. 입력 데이터 체크
-  if (!Array.isArray(filter_list) || filter_list.length === 0) {
+  // 1. keyword 없을 때 예외 처리
+  if (!keyword) {
     errLog("FILTER_03", 400, "Bad Request", {
-      filter_list: filter_list,
-      message: "잘못된 입력 데이터입니다.",
+      keyword: keyword,
+      message: "검색어를 입력해주세요.",
     });
-    return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
+    return res.status(400).json({ message: "검색어를 입력해주세요." });
   }
 
   try {
     // 2. 재료명으로 재료 ID를 검색
-    const placeholders = filter_list.map(() => "?").join(", ");
+    const placeholders = `%${keyword}%`;
     const [ingredients] = await pool.query(
-      `SELECT ingredient_id, ingredient_name FROM Ingredient WHERE ingredient_name IN (${placeholders})`,
-      filter_list
+      `SELECT ingredient_id, ingredient_name FROM Ingredient WHERE ingredient_name LIKE ?`,
+      [placeholders]
     );
 
-    const foundIngredientNames = ingredients.map(
-      (ingredient) => ingredient.ingredient_name
-    );
-    const notFoundIngredients = filter_list.filter(
-      (name) => !foundIngredientNames.includes(name)
-    );
-
-    // 3. 입력된 재료 중 저장되어 있지 않은 재료가 있는 경우 예외 처리
-    if (notFoundIngredients.length > 0) {
+    // 3. 재료 리스트 반환
+    if (ingredients.length == 0) {
       errLog("FILTER_03", 404, "Not Found", {
-        notFoundIngredients: notFoundIngredients,
-        message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
-          ", "
-        )}`,
+        notFoundIngredients: ingredients,
+        message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${keyword}`,
       });
       return res.status(404).json({
-        message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${notFoundIngredients.join(
-          ", "
-        )}`,
+        message: `이 재료는 재료 테이블에 저장되어있지 않습니다: ${keyword}`,
       });
     }
 
     // 4. 모든 재료가 재료 테이블에 저장되어 있는 경우 성공 메시지 반환
     successLog("FILTER_03");
     return res.status(200).json({
-      message: "모든 재료가 재료 테이블에 저장되어 있습니다.",
       ingredients,
     });
   } catch (err) {
     errLog("FILTER_03", 500, "Internal Server Error", {
-      filter_list: filter_list,
+      keyword: keyword,
       error: err.message,
     });
     res.status(500).json({
