@@ -21,12 +21,8 @@ RUN npm install --save cors
 # Copy the rest of the application source code
 COPY . .
 
-# Copy the entrypoint.sh script and give it execute permissions
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
-
 # Expose the application port
 EXPOSE 3000
 
-# Run initialization scripts and then start the application
-ENTRYPOINT ["./entrypoint.sh"]
+# Start the main application
+CMD ["node", "app.js"]

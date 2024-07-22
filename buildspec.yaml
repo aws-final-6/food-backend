@@ -42,5 +42,5 @@ phases:
       - git push https://x-access-token:${TOKEN_GITHUB}@github.com/aws-final-6/GitOps_Repo.git
 artifacts:
   files:
-    - '**/*'
+    - "**/*"
   discard-paths: yes

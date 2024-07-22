@@ -1,5 +1,6 @@
 function errLog(apiId, statusCode, statusMessage, additionalInfo = {}) {
   const logMessage = {
+    type: "ERROR",
     apiId: apiId, // AUTH_01
     statusCode: statusCode, // 404
     statusMessage: statusMessage, // Not Found
@@ -9,19 +10,25 @@ function errLog(apiId, statusCode, statusMessage, additionalInfo = {}) {
   console.log("Backend: ", JSON.stringify(logMessage));
 }
 
-module.exports = { errLog };
+function infoLog(apiId, reqBody = {}) {
+  const logMessage = {
+    type: "INFO",
+    apiId: apiId,
+    reqBody: reqBody,
+  };
 
-// import
-// const { errLog } = require("../utils/logUtils");
+  console.log("Backend: ", JSON.stringify(logMessage));
+}
 
-// 작성예시
-// errLog('AUTH_01', 404, 'Not Found', { user_id: 'user123', reason: 'Recipe not found' });
+function successLog(apiId) {
+  const logMessage = {
+    type: "SUCCESS",
+    apiId: apiId, // AUTH_01
+    statusCode: 200,
+    statusMessage: "OK",
+  };
 
-// 결과예시
-// {
-//   "apiId": "AUTH_01",
-//   "statusCode": 404,
-//   "statusMessage": "Not Found",
-//   "user_id": "user123",
-//   "reason": "Recipe not found",
-// }
+  console.log("Backend: ", JSON.stringify(logMessage));
+}
+
+module.exports = { errLog, infoLog, successLog };

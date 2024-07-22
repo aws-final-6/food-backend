@@ -1,22 +1,22 @@
 const express = require("express");
 const router = express.Router();
-
 const pool = require("../scripts/connector");
 const { getRefrigeratorData } = require("../utils/refrigUtils"); // 냉장고 정보 가져오기 util
-const { errLog } = require("../utils/logUtils");
-
+const { errLog, infoLog, successLog } = require("../utils/logUtils");
 router.use(express.json());
 
 // BaseUrl : /refrig
 
 // REFRIG_01 : 냉장고 정보 가져오기
 router.post("/getRefrig", async (req, res) => {
+  infoLog("REFRIG_01", req.body);
   const { user_id } = req.body;
+
   // 1. user_id 체크
   if (!user_id) {
     errLog("REFRIG_01", 400, "Bad Request", {
       user_id: user_id,
-      message: "잘못된 유저 정보입니다."
+      message: "잘못된 유저 정보입니다.",
     });
     return res.status(400).json({ message: "잘못된 유저 정보입니다." });
   }
@@ -29,16 +29,15 @@ router.post("/getRefrig", async (req, res) => {
     if (result.length === 0) {
       errLog("REFRIG_01", 404, "Not Found", {
         user_id: user_id,
-        message: "냉장고 정보를 찾을 수 없습니다."
+        message: "냉장고 정보를 찾을 수 없습니다.",
       });
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
     }
 
-    errLog("REFRIG_01", 200, "OK");
+    successLog("REFRIG_01");
     return res.status(200).json(result);
-
   } catch (err) {
     errLog("REFRIG_01", 500, "Internal Server Error", {
       user_id: user_id,
@@ -52,6 +51,7 @@ router.post("/getRefrig", async (req, res) => {
 
 // REFRIG_02 : 재료 수기로 입력받기
 router.post("/addIngredient", async (req, res) => {
+  infoLog("REFRIG_02", req.body);
   const { user_id, refrigerators } = req.body;
 
   // 1. 입력 데이터 체크
@@ -59,7 +59,7 @@ router.post("/addIngredient", async (req, res) => {
     errLog("REFRIG_02", 400, "Bad Request", {
       user_id: user_id,
       refrigerators: refrigerators,
-      message: "잘못된 입력 데이터입니다."
+      message: "잘못된 입력 데이터입니다.",
     });
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
@@ -73,17 +73,27 @@ router.post("/addIngredient", async (req, res) => {
 
     // 3. 데이터 저장
     for (const ingredient of refrigerators) {
-      const { refrigerator_ing_name, expired_date, enter_date, color, refrigerator_id } = ingredient;
+      const {
+        refrigerator_ing_name,
+        expired_date,
+        enter_date,
+        color,
+        refrigerator_id,
+      } = ingredient;
 
-      if (!refrigerator_id || !refrigerator_ing_name || !expired_date || !enter_date || !color) {
+      if (
+        !refrigerator_id ||
+        !refrigerator_ing_name ||
+        !expired_date ||
+        !enter_date ||
+        !color
+      ) {
         errLog("REFRIG_02", 400, "Bad Request", {
           user_id: user_id,
           ingredient: ingredient,
-          message: "잘못된 재료 정보입니다."
+          message: "잘못된 재료 정보입니다.",
         });
-        return res
-          .status(400)
-          .json({ message: "잘못된 재료 정보입니다." });
+        return res.status(400).json({ message: "잘못된 재료 정보입니다." });
       }
 
       await connection.execute(
@@ -108,14 +118,14 @@ router.post("/addIngredient", async (req, res) => {
     if (result.length === 0) {
       errLog("REFRIG_02", 404, "Not Found", {
         user_id: user_id,
-        message: "냉장고 정보를 찾을 수 없습니다."
+        message: "냉장고 정보를 찾을 수 없습니다.",
       });
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
     }
 
-    errLog("REFRIG_02", 200, "OK");
+    successLog("REFRIG_02");
     return res.status(200).json(result);
   } catch (err) {
     console.error(err);
@@ -137,6 +147,7 @@ router.post("/addIngredient", async (req, res) => {
 
 // REFRIG_03 : 재료 삭제
 router.post("/delIngredient", async (req, res) => {
+  infoLog("REFRIG_03", req.body);
   const { user_id, refrigerator_ing_ids } = req.body;
 
   // 1. 입력 데이터 체크
@@ -148,7 +159,7 @@ router.post("/delIngredient", async (req, res) => {
     errLog("REFRIG_03", 400, "Bad Request", {
       user_id: user_id,
       refrigerator_ing_ids: refrigerator_ing_ids,
-      message: "잘못된 입력 데이터입니다."
+      message: "잘못된 입력 데이터입니다.",
     });
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
@@ -171,7 +182,7 @@ router.post("/delIngredient", async (req, res) => {
       errLog("REFRIG_03", 404, "Not Found", {
         user_id: user_id,
         refrigerator_ing_ids: refrigerator_ing_ids,
-        message: "해당 재료를 찾을 수 없습니다."
+        message: "해당 재료를 찾을 수 없습니다.",
       });
       return res.status(404).json({ message: "해당 재료를 찾을 수 없습니다." });
     }
@@ -186,7 +197,7 @@ router.post("/delIngredient", async (req, res) => {
     if (result.length === 0) {
       errLog("REFRIG_03", 404, "Not Found", {
         user_id: user_id,
-        message: "냉장고 정보를 찾을 수 없습니다."
+        message: "냉장고 정보를 찾을 수 없습니다.",
       });
       return res
         .status(404)
@@ -195,7 +206,7 @@ router.post("/delIngredient", async (req, res) => {
 
     connection.release();
 
-    errLog("REFRIG_03", 200, "OK");
+    successLog("REFRIG_03");
     return res.status(200).json(result);
   } catch (err) {
     // 7. 트랜잭션 롤백
@@ -215,6 +226,7 @@ router.post("/delIngredient", async (req, res) => {
 
 // REFRIG_04 : 냉장고 칸 이름, 타입 변경
 router.post("/updateRefrig", async (req, res) => {
+  infoLog("REFRIG_04", req.body);
   const { user_id, refrigerator_id, new_name, new_type } = req.body;
 
   // 1. 입력 데이터 체크
@@ -224,7 +236,7 @@ router.post("/updateRefrig", async (req, res) => {
       refrigerator_id: refrigerator_id,
       new_name: new_name,
       new_type: new_type,
-      message: "잘못된 입력 데이터입니다."
+      message: "잘못된 입력 데이터입니다.",
     });
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
@@ -240,7 +252,7 @@ router.post("/updateRefrig", async (req, res) => {
       errLog("REFRIG_04", 404, "Not Found", {
         user_id: user_id,
         refrigerator_id: refrigerator_id,
-        message: "해당 냉장고를 찾을 수 없습니다."
+        message: "해당 냉장고를 찾을 수 없습니다.",
       });
       return res
         .status(404)
@@ -255,15 +267,14 @@ router.post("/updateRefrig", async (req, res) => {
       errLog("REFRIG_04", 404, "Not Found", {
         user_id: user_id,
         refrigerator_id: refrigerator_id,
-        message: "냉장고 정보를 찾을 수 없습니다."
+        message: "냉장고 정보를 찾을 수 없습니다.",
       });
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
     }
-    errLog("REFRIG_04", 200, "OK");
+    successLog("REFRIG_04");
     return res.status(200).json(result);
-
   } catch (err) {
     errLog("REFRIG_04", 500, "Internal Server Error", {
       user_id: user_id,
@@ -277,6 +288,7 @@ router.post("/updateRefrig", async (req, res) => {
 
 // REFRIG_05 : 냉장고 칸 추가
 router.post("/addRefrig", async (req, res) => {
+  infoLog("REFRIG_05", req.body);
   const { user_id, refrigerator_name, refrigerator_type } = req.body;
 
   // 1. 입력 데이터 체크
@@ -285,7 +297,7 @@ router.post("/addRefrig", async (req, res) => {
       user_id: user_id,
       refrigerator_name: refrigerator_name,
       refrigerator_type: refrigerator_type,
-      message: "잘못된 입력 데이터입니다."
+      message: "잘못된 입력 데이터입니다.",
     });
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
@@ -300,7 +312,7 @@ router.post("/addRefrig", async (req, res) => {
     if (existingFridges[0].count >= 10) {
       errLog("REFRIG_05", 409, "Conflict", {
         user_id: user_id,
-        message: "냉장고 칸은 최대 10칸까지 추가할 수 있습니다."
+        message: "냉장고 칸은 최대 10칸까지 추가할 수 있습니다.",
       });
       return res
         .status(409)
@@ -330,15 +342,14 @@ router.post("/addRefrig", async (req, res) => {
     if (result.length === 0) {
       errLog("REFRIG_05", 404, "Not Found", {
         user_id: user_id,
-        message: "냉장고 정보를 찾을 수 없습니다."
+        message: "냉장고 정보를 찾을 수 없습니다.",
       });
       return res
         .status(404)
         .json({ message: "냉장고 정보를 찾을 수 없습니다." });
     }
-    errLog("REFRIG_05", 200, "OK");
+    successLog("REFRIG_05");
     return res.status(200).json(result);
-
   } catch (err) {
     errLog("REFRIG_05", 500, "Internal Server Error", {
       user_id: user_id,
@@ -352,6 +363,7 @@ router.post("/addRefrig", async (req, res) => {
 
 // REFRIG_06 : 냉장고 칸 삭제
 router.post("/delRefrig", async (req, res) => {
+  infoLog("REFRIG_06", req.body);
   const { user_id, refrigerator_id } = req.body;
 
   // 1. 입력 데이터 체크
@@ -359,7 +371,7 @@ router.post("/delRefrig", async (req, res) => {
     errLog("REFRIG_06", 400, "Bad Request", {
       user_id: user_id,
       refrigerator_id: refrigerator_id,
-      message: "잘못된 입력 데이터입니다."
+      message: "잘못된 입력 데이터입니다.",
     });
     return res.status(400).json({ message: "잘못된 입력 데이터입니다." });
   }
@@ -381,7 +393,7 @@ router.post("/delRefrig", async (req, res) => {
       await connection.rollback();
       errLog("REFRIG_06", 409, "Conflict", {
         user_id: user_id,
-        message: "냉장고 칸은 최소 2칸을 유지해야 합니다."
+        message: "냉장고 칸은 최소 2칸을 유지해야 합니다.",
       });
       return res
         .status(409)
@@ -404,7 +416,7 @@ router.post("/delRefrig", async (req, res) => {
       errLog("REFRIG_06", 404, "Not Found", {
         user_id: user_id,
         refrigerator_id: refrigerator_id,
-        message: "해당 냉장고 칸을 찾을 수 없습니다."
+        message: "해당 냉장고 칸을 찾을 수 없습니다.",
       });
       return res
         .status(404)
@@ -421,7 +433,7 @@ router.post("/delRefrig", async (req, res) => {
     if (result.length === 0) {
       errLog("REFRIG_06", 404, "Not Found", {
         user_id: user_id,
-        message: "냉장고 정보를 찾을 수 없습니다."
+        message: "냉장고 정보를 찾을 수 없습니다.",
       });
       return res
         .status(404)
@@ -430,7 +442,7 @@ router.post("/delRefrig", async (req, res) => {
 
     connection.release();
 
-    errLog("REFRIG_06", 200, "OK");
+    successLog("REFRIG_06");
     return res.status(200).json(result);
   } catch (err) {
     console.error(err);
