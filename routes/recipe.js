@@ -26,7 +26,7 @@ router.get("/getRecentList", async (req, res) => {
   try {
     // 1. recipe_id 기준 20개 SELECT
     const [recentRecipes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe ORDER BY recipe_id DESC LIMIT 20"
+      "SELECT recipe_id, recipe_title, recipe_thumbnail, cate_no, situ_no FROM Recipe ORDER BY recipe_id DESC LIMIT 20"
     );
 
     // 2. 클라이언트 전달
@@ -97,7 +97,7 @@ router.post("/getPreferList", async (req, res) => {
 
     // 2. 두 선호도 모두 만족하는 레시피 목록 SELECT
     const [queryRes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? AND situ_no = ? ORDER BY RAND() LIMIT 20",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail, cate_no, situ_no FROM Recipe WHERE cate_no = ? AND situ_no = ? ORDER BY RAND() LIMIT 20",
       [getUserPrefer[0].cate_no, getUserPrefer[0].situ_no]
     );
 
@@ -107,6 +107,8 @@ router.post("/getPreferList", async (req, res) => {
         recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
+        cate_no: recipe.cate_no,
+        situ_no: recipe.situ_no,
       })),
     };
     successLog("RECIPE_03");
@@ -139,7 +141,7 @@ router.post("/getCateList", async (req, res) => {
   try {
     // 1. 만족하는 레시피 찾기 (무작위로 최대 20개)
     const [queryRes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE cate_no = ? ORDER BY RAND() LIMIT 20",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail, cate_no, situ_no FROM Recipe WHERE cate_no = ? ORDER BY RAND() LIMIT 20",
       [cate_no]
     );
 
@@ -160,6 +162,8 @@ router.post("/getCateList", async (req, res) => {
         recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
+        cate_no: recipe.cate_no,
+        situ_no: recipe.situ_no,
       })),
     };
 
@@ -193,7 +197,7 @@ router.post("/getSituList", async (req, res) => {
   try {
     // 1. 만족하는 레시피 찾기
     const [queryRes] = await pool.query(
-      "SELECT recipe_id, recipe_title, recipe_thumbnail FROM Recipe WHERE situ_no = ? ORDER BY RAND() LIMIT 20",
+      "SELECT recipe_id, recipe_title, recipe_thumbnail, cate_no, situ_no FROM Recipe WHERE situ_no = ? ORDER BY RAND() LIMIT 20",
       [situ_no]
     );
 
@@ -214,6 +218,8 @@ router.post("/getSituList", async (req, res) => {
         recipe_id: recipe.recipe_id,
         recipe_title: recipe.recipe_title,
         recipe_thumbnail: recipe.recipe_thumbnail,
+        cate_no: recipe.cate_no,
+        situ_no: recipe.situ_no,
       })),
     };
 
@@ -262,7 +268,7 @@ router.get("/getRecipe/:id", async (req, res) => {
     // 2. CSV 파일 스트림을 생성하고 파싱
     const stream = fs
       // 2-1. 파일 경로 지정 *** 경로지정 필요 ***
-      .createReadStream(path.join(__dirname, bodydata.uri, bodydata.filename))
+      .createReadStream(path.join(__dirname, "../data", "recipe_samples.csv"))
       .pipe(
         csv({
           headers: [
