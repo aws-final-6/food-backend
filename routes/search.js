@@ -32,7 +32,7 @@ router.post("/getTitleSearchList", async (req, res) => {
   try {
     // 1. 제목으로 검색 (대소문자 구분 없이 포함하는 결과)
     let query = `
-      SELECT recipe_id, recipe_title, recipe_thumbnail 
+      SELECT recipe_id, recipe_title, recipe_thumbnail, situ_no, cate_no 
       FROM Recipe 
       WHERE recipe_title LIKE ?
     `;
@@ -62,6 +62,8 @@ router.post("/getTitleSearchList", async (req, res) => {
       recipe_id: r.recipe_id,
       recipe_title: r.recipe_title,
       recipe_thumbnail: r.recipe_thumbnail,
+      situ_no: r.situ_no,
+      cate_no: r.cate_no,
     }));
     successLog("SEARCH_01");
     res.status(200).json({ search_list });
@@ -101,7 +103,7 @@ router.post("/getIngredientSearchList", async (req, res) => {
   try {
     // 1. 재료명으로 재료 ID를 검색
     let query = `
-      SELECT i.recipe_id, r.recipe_title, r.recipe_thumbnail 
+      SELECT i.recipe_id, r.recipe_title, r.recipe_thumbnail, r.situ_no, r.cate_no
       FROM IngredientSearch i 
       JOIN Recipe r ON i.recipe_id = r.recipe_id 
       WHERE i.ingredient_id IN (SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?)
@@ -132,6 +134,8 @@ router.post("/getIngredientSearchList", async (req, res) => {
       recipe_id: r.recipe_id,
       recipe_title: r.recipe_title,
       recipe_thumbnail: r.recipe_thumbnail,
+      cate_no: r.cate_no,
+      situ_no: r.situ_no,
     }));
 
     successLog("SEARCH_02");
@@ -182,7 +186,7 @@ router.post("/getFilteredSearchList", async (req, res) => {
   try {
     // 1. 쿼리 구성
     let query = `
-      SELECT DISTINCT r.recipe_id, r.recipe_title, r.recipe_thumbnail 
+      SELECT DISTINCT r.recipe_id, r.recipe_title, r.recipe_thumbnail, r.cate_no, r.situ_no
       FROM IngredientSearch i 
       JOIN Recipe r ON i.recipe_id = r.recipe_id 
       WHERE i.ingredient_id IN (SELECT ingredient_id FROM Ingredient WHERE ingredient_name LIKE ?)
@@ -218,6 +222,8 @@ router.post("/getFilteredSearchList", async (req, res) => {
       recipe_id: r.recipe_id,
       recipe_title: r.recipe_title,
       recipe_thumbnail: r.recipe_thumbnail,
+      cate_no: r.cate_no,
+      situ_no: r.situ_no,
     }));
     successLog("SEARCH_03");
     res.status(200).json({ search_list });
@@ -272,7 +278,7 @@ router.post("/getMultiSearchList", async (req, res) => {
     // 3. 재료 ID 리스트로 레시피 ID 검색
     const recipePlaceholders = ingredientIds.map(() => "?").join(", ");
     const [recipes] = await pool.execute(
-      `SELECT r.recipe_id, r.recipe_title, r.recipe_thumbnail 
+      `SELECT r.recipe_id, r.recipe_title, r.recipe_thumbnail, r.situ_no, r.cate_no 
       FROM Recipe r 
       JOIN (
         SELECT recipe_id 
@@ -300,6 +306,8 @@ router.post("/getMultiSearchList", async (req, res) => {
       recipe_id: r.recipe_id,
       recipe_title: r.recipe_title,
       recipe_thumbnail: r.recipe_thumbnail,
+      situ_no: r.situ_no,
+      cate_no: r.cate_no,
     }));
     successLog("SEARCH_04");
     res.status(200).json({ search_list });
