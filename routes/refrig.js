@@ -328,7 +328,7 @@ router.post("/addRefrig", async (req, res) => {
     if (addResult.affectedRows === 0) {
       errLog("REFRIG_05", 500, "Internal Server Error", {
         user_id: user_id,
-        error: err.message,
+        message: "냉장고 칸 추가에 실패했습니다. 다시 시도해주세요.",
       });
       return res
         .status(500)
