@@ -268,7 +268,7 @@ router.get("/getRecipe/:id", async (req, res) => {
     // 2. CSV 파일 스트림을 생성하고 파싱
     const stream = fs
       // 2-1. 파일 경로 지정 *** 경로지정 필요 ***
-      .createReadStream(path.join(__dirname, "../data", "recipe_samples.csv"))
+      .createReadStream(path.join(__dirname, bodydata.uri, bodydata.filename))
       .pipe(
         csv({
           headers: [
